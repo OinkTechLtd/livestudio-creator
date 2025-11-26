@@ -8,6 +8,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tv, Radio } from "lucide-react";
+import { z } from "zod";
+
+const signUpSchema = z.object({
+  username: z.string().min(3, "Имя пользователя должно быть минимум 3 символа").max(50, "Имя пользователя слишком длинное"),
+  email: z.string().email("Неверный формат email"),
+  password: z.string().min(6, "Пароль должен быть минимум 6 символов").max(100, "Пароль слишком длинный"),
+});
+
+const signInSchema = z.object({
+  email: z.string().email("Неверный формат email"),
+  password: z.string().min(1, "Введите пароль"),
+});
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -39,29 +51,51 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
+      // Validate input
+      const validatedData = signUpSchema.parse({ username, email, password });
+
+      const { data, error } = await supabase.auth.signUp({
+        email: validatedData.email,
+        password: validatedData.password,
         options: {
           data: {
-            username,
+            username: validatedData.username,
           },
           emailRedirectTo: `${window.location.origin}/`,
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes("already registered")) {
+          throw new Error("Этот email уже зарегистрирован");
+        }
+        throw error;
+      }
 
-      toast({
-        title: "Добро пожаловать!",
-        description: "Ваш аккаунт успешно создан.",
-      });
+      if (data.user) {
+        toast({
+          title: "Добро пожаловать!",
+          description: "Ваш аккаунт успешно создан. Перенаправляем...",
+        });
+        // Clear form
+        setEmail("");
+        setPassword("");
+        setUsername("");
+      }
     } catch (error: any) {
-      toast({
-        title: "Ошибка",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (error instanceof z.ZodError) {
+        toast({
+          title: "Ошибка валидации",
+          description: error.issues[0].message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Ошибка регистрации",
+          description: error.message || "Не удалось создать аккаунт",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -72,23 +106,44 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // Validate input
+      const validatedData = signInSchema.parse({ email, password });
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: validatedData.email,
+        password: validatedData.password,
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes("Invalid login credentials")) {
+          throw new Error("Неверный email или пароль");
+        }
+        if (error.message.includes("Email not confirmed")) {
+          throw new Error("Email не подтвержден. Проверьте почту.");
+        }
+        throw error;
+      }
 
-      toast({
-        title: "С возвращением!",
-        description: "Вы успешно вошли в систему.",
-      });
+      if (data.session) {
+        toast({
+          title: "С возвращением!",
+          description: "Вы успешно вошли в систему.",
+        });
+      }
     } catch (error: any) {
-      toast({
-        title: "Ошибка входа",
-        description: error.message,
-        variant: "destructive",
-      });
+      if (error instanceof z.ZodError) {
+        toast({
+          title: "Ошибка валидации",
+          description: error.issues[0].message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Ошибка входа",
+          description: error.message || "Не удалось войти",
+          variant: "destructive",
+        });
+      }
     } finally {
       setLoading(false);
     }
