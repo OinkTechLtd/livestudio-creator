@@ -27,6 +27,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import LikeDislikeSection from "@/components/LikeDislikeSection";
+import CommentsSection from "@/components/CommentsSection";
 
 interface Channel {
   id: string;
@@ -418,31 +420,35 @@ const ChannelView = () => {
           )}
         </div>
 
-        {/* Embed Code Dialog */}
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline" className="mb-6">
-              <Code className="w-4 h-4 mr-2" />
-              Код для встраивания
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Встроить плеер на сайт</DialogTitle>
-              <DialogDescription>
-                Скопируйте этот код и вставьте его на ваш сайт
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="bg-muted p-4 rounded-lg">
-                <code className="text-sm break-all">{getEmbedCode()}</code>
-              </div>
-              <Button onClick={copyEmbedCode} className="w-full">
-                Скопировать код
+        {/* Like/Dislike and Embed Code */}
+        <div className="flex items-center gap-4 mb-6">
+          <LikeDislikeSection channelId={channel.id} />
+          
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Code className="w-4 h-4 mr-2" />
+                Код для встраивания
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Встроить плеер на сайт</DialogTitle>
+                <DialogDescription>
+                  Скопируйте этот код и вставьте его на ваш сайт
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="bg-muted p-4 rounded-lg">
+                  <code className="text-sm break-all">{getEmbedCode()}</code>
+                </div>
+                <Button onClick={copyEmbedCode} className="w-full">
+                  Скопировать код
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
 
         {/* Tabs for content */}
         <Tabs defaultValue="player" className="w-full">
@@ -561,6 +567,11 @@ const ChannelView = () => {
             </TabsContent>
           )}
         </Tabs>
+
+        {/* Comments Section */}
+        <div className="mt-8">
+          <CommentsSection channelId={channel.id} />
+        </div>
       </main>
     </div>
   );
