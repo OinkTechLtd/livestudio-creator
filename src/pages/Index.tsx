@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import Header from "@/components/Header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -113,10 +113,9 @@ const Index = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {channels.map((channel) => (
-                  <Card
-                    key={channel.id}
-                    className="group glass hover:glass-strong transition-all duration-300 cursor-pointer overflow-hidden border-primary/20 hover:border-primary/40"
-                  >
+                  <Link key={channel.id} to={`/channel/${channel.id}`}>
+                    <Card className="group glass hover:glass-strong transition-all duration-300 cursor-pointer overflow-hidden border-primary/20 hover:border-primary/40"
+                    >
                     <div className="relative aspect-video bg-muted overflow-hidden">
                       {channel.thumbnail_url ? (
                         <img
@@ -161,6 +160,7 @@ const Index = () => {
                       </Button>
                     </CardContent>
                   </Card>
+                  </Link>
                 ))}
               </div>
             )}
@@ -192,10 +192,9 @@ const Index = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {channels.map((channel) => (
-                  <Card
-                    key={channel.id}
-                    className="group glass hover:glass-strong transition-all duration-300 cursor-pointer overflow-hidden border-secondary/20 hover:border-secondary/40"
-                  >
+                  <Link key={channel.id} to={`/channel/${channel.id}`}>
+                    <Card className="group glass hover:glass-strong transition-all duration-300 cursor-pointer overflow-hidden border-secondary/20 hover:border-secondary/40"
+                    >
                     <div className="relative aspect-video bg-muted overflow-hidden">
                       {channel.thumbnail_url ? (
                         <img
@@ -240,6 +239,7 @@ const Index = () => {
                       </Button>
                     </CardContent>
                   </Card>
+                  </Link>
                 ))}
               </div>
             )}
