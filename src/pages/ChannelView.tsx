@@ -68,11 +68,21 @@ const ChannelView = () => {
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string>("");
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+  const [muxStreamKey, setMuxStreamKey] = useState<string>("");
+  const [muxPlaybackId, setMuxPlaybackId] = useState<string>("");
+  const [isCreatingStream, setIsCreatingStream] = useState(false);
 
   useEffect(() => {
     fetchChannel();
     fetchMediaContent();
   }, [id]);
+
+  useEffect(() => {
+    // Load existing stream key if available
+    if (channel?.stream_key) {
+      setMuxStreamKey(channel.stream_key);
+    }
+  }, [channel]);
 
   const fetchChannel = async () => {
     if (!id) return;
@@ -308,6 +318,50 @@ const ChannelView = () => {
     });
   };
 
+  const createMuxStream = async () => {
+    if (!channel) return;
+
+    setIsCreatingStream(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('mux-create-stream', {
+        body: { channelId: channel.id },
+      });
+
+      if (error) throw error;
+
+      setMuxStreamKey(data.streamKey);
+      setMuxPlaybackId(data.playbackId);
+
+      // Update local channel state
+      setChannel({
+        ...channel,
+        stream_key: data.streamKey,
+      });
+
+      toast({
+        title: "Успешно",
+        description: "Live stream создан! Теперь вы можете стримить через OBS",
+      });
+    } catch (error: any) {
+      console.error('Error creating stream:', error);
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось создать stream",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingStream(false);
+    }
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Скопировано",
+      description: `${label} скопирован в буфер обмена`,
+    });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -466,7 +520,16 @@ const ChannelView = () => {
           <TabsContent value="player" className="mt-6">
             <div className="bg-card border-2 border-border rounded-lg p-8">
               <div className="space-y-4">
-                {mediaContent.length > 0 ? (
+                {channel.streaming_method === "live" && muxPlaybackId ? (
+                  <div className="aspect-video bg-muted rounded-lg overflow-hidden">
+                    <iframe
+                      src={`https://stream.mux.com/${muxPlaybackId}.html?autoplay=true`}
+                      style={{ width: '100%', height: '100%', border: 0 }}
+                      allow="autoplay; fullscreen"
+                      allowFullScreen
+                    />
+                  </div>
+                ) : mediaContent.length > 0 ? (
                   <>
                     <div className="aspect-video bg-muted rounded-lg flex items-center justify-center overflow-hidden">
                       {channel.channel_type === "tv" ? (
@@ -613,27 +676,91 @@ const ChannelView = () => {
 
           {isOwner && channel.streaming_method === "live" && (
             <TabsContent value="obs" className="mt-6">
-              <div className="bg-card border-2 border-border rounded-lg p-6 space-y-4">
-                <h3 className="text-xl font-bold">Настройки для OBS Studio</h3>
-                <div className="space-y-2">
-                  <Label>Stream URL (RTMP):</Label>
-                  <Input
-                    value={`rtmp://${window.location.hostname}/live`}
-                    readOnly
-                    className="font-mono"
-                  />
+              <div className="bg-card border-2 border-border rounded-lg p-6 space-y-6">
+                <div>
+                  <h3 className="text-xl font-bold mb-2">Настройки для OBS Studio</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Используйте эти данные для настройки live стриминга через OBS
+                  </p>
                 </div>
-                <div className="space-y-2">
-                  <Label>Stream Key:</Label>
-                  <Input
-                    value={channel.stream_key || ""}
-                    readOnly
-                    className="font-mono"
-                  />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Используйте эти данные в OBS Studio для настройки стриминга
-                </p>
+
+                {!muxStreamKey ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground mb-4">
+                      Создайте live stream для получения настроек RTMP
+                    </p>
+                    <Button 
+                      onClick={createMuxStream} 
+                      disabled={isCreatingStream}
+                      size="lg"
+                    >
+                      {isCreatingStream ? "Создание..." : "Создать Live Stream"}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="bg-muted/50 p-4 rounded-lg space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-base font-semibold">RTMP Server URL:</Label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard("rtmp://global-live.mux.com:5222/app", "RTMP URL")}
+                          >
+                            Копировать
+                          </Button>
+                        </div>
+                        <Input
+                          value="rtmp://global-live.mux.com:5222/app"
+                          readOnly
+                          className="font-mono text-sm bg-background"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-base font-semibold">Stream Key:</Label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(muxStreamKey, "Stream Key")}
+                          >
+                            Копировать
+                          </Button>
+                        </div>
+                        <Input
+                          value={muxStreamKey}
+                          readOnly
+                          className="font-mono text-sm bg-background"
+                          type="password"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          ⚠️ Не делитесь Stream Key с другими людьми
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-4">
+                      <h4 className="font-semibold mb-3">Инструкция по настройке OBS:</h4>
+                      <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+                        <li>Откройте OBS Studio</li>
+                        <li>Перейдите в Settings → Stream</li>
+                        <li>Выберите "Custom" в Service</li>
+                        <li>Вставьте RTMP Server URL в поле "Server"</li>
+                        <li>Вставьте Stream Key в поле "Stream Key"</li>
+                        <li>Нажмите "OK" и начните стриминг</li>
+                      </ol>
+                    </div>
+
+                    <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
+                      <p className="text-sm">
+                        <strong>Статус:</strong> Stream готов к использованию. 
+                        Начните трансляцию в OBS, и ваш контент будет доступен зрителям через несколько секунд.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </TabsContent>
           )}
