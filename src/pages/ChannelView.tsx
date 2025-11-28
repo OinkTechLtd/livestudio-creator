@@ -29,6 +29,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LikeDislikeSection from "@/components/LikeDislikeSection";
 import CommentsSection from "@/components/CommentsSection";
+import SubscribeButton from "@/components/SubscribeButton";
 
 interface Channel {
   id: string;
@@ -66,6 +67,7 @@ const ChannelView = () => {
   const [editedDescription, setEditedDescription] = useState("");
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string>("");
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
 
   useEffect(() => {
     fetchChannel();
@@ -420,8 +422,9 @@ const ChannelView = () => {
           )}
         </div>
 
-        {/* Like/Dislike and Embed Code */}
-        <div className="flex items-center gap-4 mb-6">
+        {/* Subscribe, Like/Dislike and Embed Code */}
+        <div className="flex flex-wrap items-center gap-4 mb-6">
+          {!isOwner && <SubscribeButton channelId={channel.id} channelTitle={channel.title} />}
           <LikeDislikeSection channelId={channel.id} />
           
           <Dialog>
@@ -462,30 +465,98 @@ const ChannelView = () => {
 
           <TabsContent value="player" className="mt-6">
             <div className="bg-card border-2 border-border rounded-lg p-8">
-              <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
+              <div className="space-y-4">
                 {mediaContent.length > 0 ? (
-                  <div className="text-center">
-                    <p className="text-lg font-semibold mb-2">
-                      {mediaContent[0].title}
-                    </p>
-                    {channel.channel_type === "tv" ? (
-                      <video
-                        src={mediaContent[0].file_url}
-                        controls
-                        className="w-full max-h-[450px]"
-                      />
-                    ) : (
-                      <audio src={mediaContent[0].file_url} controls className="w-full" />
-                    )}
-                  </div>
+                  <>
+                    <div className="aspect-video bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+                      {channel.channel_type === "tv" ? (
+                        <video
+                          key={mediaContent[currentMediaIndex].id}
+                          src={mediaContent[currentMediaIndex].file_url}
+                          controls
+                          autoPlay
+                          className="w-full h-full object-contain"
+                          onEnded={() => {
+                            // Auto-play next video
+                            if (currentMediaIndex < mediaContent.length - 1) {
+                              setCurrentMediaIndex(currentMediaIndex + 1);
+                            } else {
+                              // Loop back to first video
+                              setCurrentMediaIndex(0);
+                            }
+                          }}
+                          onError={(e) => {
+                            console.error("Video error:", e);
+                            // Skip to next video on error
+                            if (currentMediaIndex < mediaContent.length - 1) {
+                              setCurrentMediaIndex(currentMediaIndex + 1);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <audio
+                          key={mediaContent[currentMediaIndex].id}
+                          src={mediaContent[currentMediaIndex].file_url}
+                          controls
+                          autoPlay
+                          className="w-full"
+                          onEnded={() => {
+                            // Auto-play next audio
+                            if (currentMediaIndex < mediaContent.length - 1) {
+                              setCurrentMediaIndex(currentMediaIndex + 1);
+                            } else {
+                              // Loop back to first audio
+                              setCurrentMediaIndex(0);
+                            }
+                          }}
+                          onError={(e) => {
+                            console.error("Audio error:", e);
+                            // Skip to next audio on error
+                            if (currentMediaIndex < mediaContent.length - 1) {
+                              setCurrentMediaIndex(currentMediaIndex + 1);
+                            }
+                          }}
+                        />
+                      )}
+                    </div>
+                    
+                    {/* Playlist */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-2">
+                        Плейлист ({mediaContent.length} {mediaContent.length === 1 ? "файл" : "файлов"})
+                      </h3>
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {mediaContent.map((media, index) => (
+                          <div
+                            key={media.id}
+                            onClick={() => setCurrentMediaIndex(index)}
+                            className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                              index === currentMediaIndex
+                                ? "bg-primary text-primary-foreground"
+                                : "bg-muted hover:bg-muted/80"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm font-semibold">
+                                {index + 1}
+                              </span>
+                              <span className="flex-1 truncate">{media.title}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
                 ) : (
-                  <div className="text-center text-muted-foreground">
-                    <p className="text-lg mb-2">Медиа контент пока не загружен</p>
-                    {isOwner && (
-                      <p className="text-sm">
-                        Загрузите медиа файлы во вкладке "Медиа файлы"
-                      </p>
-                    )}
+                  <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
+                    <div className="text-center text-muted-foreground">
+                      <p className="text-lg mb-2">Медиа контент пока не загружен</p>
+                      {isOwner && (
+                        <p className="text-sm">
+                          Загрузите медиа файлы во вкладке "Медиа файлы"
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
