@@ -83,8 +83,7 @@ serve(async (req) => {
       .from('channels')
       .update({
         stream_key: muxData.data.stream_key,
-        // Store Mux stream ID and playback ID in description for now
-        // In production, you'd want a separate table for this
+        mux_playback_id: muxData.data.playback_ids[0].id,
       })
       .eq('id', channelId);
 
