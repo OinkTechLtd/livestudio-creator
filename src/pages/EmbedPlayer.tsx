@@ -109,27 +109,45 @@ const EmbedPlayer = () => {
   };
 
   return (
-    <div className="w-full h-full bg-black">
+    <div className="w-full h-full bg-black relative">
       {channel.channel_type === "tv" ? (
-        <video
-          key={currentMedia.id}
-          src={currentMedia.file_url}
-          controls
-          autoPlay
-          onEnded={handleEnded}
-          className="w-full h-full"
-        />
-      ) : (
-        <div className="w-full h-full flex flex-col items-center justify-center">
-          <h2 className="text-white text-2xl mb-4">{channel.title}</h2>
-          <audio
+        <>
+          <div className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-2 z-10">
+            <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+            LIVE
+          </div>
+          <video
             key={currentMedia.id}
             src={currentMedia.file_url}
             controls
             autoPlay
             onEnded={handleEnded}
-            className="w-full max-w-md"
+            className="w-full h-full"
           />
+        </>
+      ) : (
+        <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
+          <div className="text-center space-y-6">
+            <div className="w-32 h-32 mx-auto bg-white/10 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-16 h-16 text-white animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+              </svg>
+            </div>
+            <div className="bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold inline-flex items-center gap-2">
+              <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              ПРЯМОЙ ЭФИР
+            </div>
+            <h2 className="text-white text-3xl font-bold">{channel.title}</h2>
+            <p className="text-white/70 text-lg">Сейчас в эфире: {currentMedia.title}</p>
+            <audio
+              key={currentMedia.id}
+              src={currentMedia.file_url}
+              controls
+              autoPlay
+              onEnded={handleEnded}
+              className="w-full max-w-md mx-auto mt-6"
+            />
+          </div>
         </div>
       )}
     </div>
