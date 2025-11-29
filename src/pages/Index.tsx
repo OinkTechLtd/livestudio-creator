@@ -5,7 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tv, Radio, Users, Eye, Play } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Tv, Radio, Users, Eye, Play, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -14,11 +15,28 @@ const Index = () => {
   const activeTab = searchParams.get("tab") || "tv";
   const { loading: authLoading } = useAuth();
   const [channels, setChannels] = useState<any[]>([]);
+  const [filteredChannels, setFilteredChannels] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchChannels();
   }, [activeTab]);
+
+  useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setFilteredChannels(channels);
+    } else {
+      const query = searchQuery.toLowerCase();
+      const filtered = channels.filter(
+        (channel) =>
+          channel.title.toLowerCase().includes(query) ||
+          channel.description?.toLowerCase().includes(query) ||
+          channel.profiles?.username.toLowerCase().includes(query)
+      );
+      setFilteredChannels(filtered);
+    }
+  }, [searchQuery, channels]);
 
   const fetchChannels = async () => {
     setLoading(true);
@@ -35,6 +53,7 @@ const Index = () => {
 
       if (error) throw error;
       setChannels(data || []);
+      setFilteredChannels(data || []);
     } catch (error) {
       console.error("Error fetching channels:", error);
     } finally {
@@ -74,6 +93,20 @@ const Index = () => {
           </p>
         </div>
 
+        {/* Search */}
+        <div className="max-w-2xl mx-auto mb-8">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Поиск по каналам, радио или авторам..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 glass-strong text-lg py-6"
+            />
+          </div>
+        </div>
+
         {/* Tabs for TV/Radio */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8 glass-strong">
@@ -100,7 +133,17 @@ const Index = () => {
                   </Card>
                 ))}
               </div>
-            ) : channels.length === 0 ? (
+            ) : filteredChannels.length === 0 && searchQuery ? (
+              <Card className="glass-strong text-center py-12">
+                <CardContent>
+                  <Search className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-xl font-semibold mb-2">Ничего не найдено</h3>
+                  <p className="text-muted-foreground">
+                    Попробуйте изменить поисковый запрос
+                  </p>
+                </CardContent>
+              </Card>
+            ) : filteredChannels.length === 0 ? (
               <Card className="glass-strong text-center py-12">
                 <CardContent>
                   <Tv className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
@@ -112,7 +155,7 @@ const Index = () => {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {channels.map((channel) => (
+                {filteredChannels.map((channel) => (
                   <Link key={channel.id} to={`/channel/${channel.id}`}>
                     <Card className="group glass hover:glass-strong transition-all duration-300 cursor-pointer overflow-hidden border-primary/20 hover:border-primary/40"
                     >
@@ -179,7 +222,17 @@ const Index = () => {
                   </Card>
                 ))}
               </div>
-            ) : channels.length === 0 ? (
+            ) : filteredChannels.length === 0 && searchQuery ? (
+              <Card className="glass-strong text-center py-12">
+                <CardContent>
+                  <Search className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-xl font-semibold mb-2">Ничего не найдено</h3>
+                  <p className="text-muted-foreground">
+                    Попробуйте изменить поисковый запрос
+                  </p>
+                </CardContent>
+              </Card>
+            ) : filteredChannels.length === 0 ? (
               <Card className="glass-strong text-center py-12">
                 <CardContent>
                   <Radio className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
@@ -191,7 +244,7 @@ const Index = () => {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {channels.map((channel) => (
+                {filteredChannels.map((channel) => (
                   <Link key={channel.id} to={`/channel/${channel.id}`}>
                     <Card className="group glass hover:glass-strong transition-all duration-300 cursor-pointer overflow-hidden border-secondary/20 hover:border-secondary/40"
                     >

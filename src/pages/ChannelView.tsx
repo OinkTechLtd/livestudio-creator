@@ -535,86 +535,60 @@ const ChannelView = () => {
                     />
                   </div>
                 ) : mediaContent.length > 0 ? (
-                  <>
-                    <div className="aspect-video bg-muted rounded-lg flex items-center justify-center overflow-hidden">
-                      {channel.channel_type === "tv" ? (
-                        <video
-                          key={mediaContent[currentMediaIndex].id}
-                          src={mediaContent[currentMediaIndex].file_url}
-                          controls
-                          autoPlay
-                          className="w-full h-full object-contain"
-                          onEnded={() => {
-                            // Auto-play next video
-                            if (currentMediaIndex < mediaContent.length - 1) {
-                              setCurrentMediaIndex(currentMediaIndex + 1);
-                            } else {
-                              // Loop back to first video
-                              setCurrentMediaIndex(0);
-                            }
-                          }}
-                          onError={(e) => {
-                            console.error("Video error:", e);
-                            // Skip to next video on error
-                            if (currentMediaIndex < mediaContent.length - 1) {
-                              setCurrentMediaIndex(currentMediaIndex + 1);
-                            }
-                          }}
-                        />
-                      ) : (
+                  <div className="aspect-video bg-muted rounded-lg flex items-center justify-center overflow-hidden relative">
+                    <div className="absolute top-4 left-4 bg-destructive text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-2 z-10">
+                      <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                      ПРЯМОЙ ЭФИР
+                    </div>
+                    {channel.channel_type === "tv" ? (
+                      <video
+                        key={mediaContent[currentMediaIndex].id}
+                        src={mediaContent[currentMediaIndex].file_url}
+                        controls
+                        autoPlay
+                        className="w-full h-full object-contain"
+                        onEnded={() => {
+                          if (currentMediaIndex < mediaContent.length - 1) {
+                            setCurrentMediaIndex(currentMediaIndex + 1);
+                          } else {
+                            setCurrentMediaIndex(0);
+                          }
+                        }}
+                        onError={(e) => {
+                          console.error("Video error:", e);
+                          if (currentMediaIndex < mediaContent.length - 1) {
+                            setCurrentMediaIndex(currentMediaIndex + 1);
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-background to-primary/10">
+                        <RadioIcon className="w-24 h-24 text-primary mb-6 animate-pulse" />
+                        <h2 className="text-2xl font-bold mb-2">{channel.title}</h2>
+                        <p className="text-muted-foreground mb-6">В эфире: {mediaContent[currentMediaIndex].title}</p>
                         <audio
                           key={mediaContent[currentMediaIndex].id}
                           src={mediaContent[currentMediaIndex].file_url}
                           controls
                           autoPlay
-                          className="w-full"
+                          className="w-full max-w-md"
                           onEnded={() => {
-                            // Auto-play next audio
                             if (currentMediaIndex < mediaContent.length - 1) {
                               setCurrentMediaIndex(currentMediaIndex + 1);
                             } else {
-                              // Loop back to first audio
                               setCurrentMediaIndex(0);
                             }
                           }}
                           onError={(e) => {
                             console.error("Audio error:", e);
-                            // Skip to next audio on error
                             if (currentMediaIndex < mediaContent.length - 1) {
                               setCurrentMediaIndex(currentMediaIndex + 1);
                             }
                           }}
                         />
-                      )}
-                    </div>
-                    
-                    {/* Playlist */}
-                    <div>
-                      <h3 className="text-lg font-semibold mb-2">
-                        Плейлист ({mediaContent.length} {mediaContent.length === 1 ? "файл" : "файлов"})
-                      </h3>
-                      <div className="space-y-2 max-h-60 overflow-y-auto">
-                        {mediaContent.map((media, index) => (
-                          <div
-                            key={media.id}
-                            onClick={() => setCurrentMediaIndex(index)}
-                            className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                              index === currentMediaIndex
-                                ? "bg-primary text-primary-foreground"
-                                : "bg-muted hover:bg-muted/80"
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="text-sm font-semibold">
-                                {index + 1}
-                              </span>
-                              <span className="flex-1 truncate">{media.title}</span>
-                            </div>
-                          </div>
-                        ))}
                       </div>
-                    </div>
-                  </>
+                    )}
+                  </div>
                 ) : (
                   <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
                     <div className="text-center text-muted-foreground">
@@ -657,22 +631,53 @@ const ChannelView = () => {
 
                 {mediaContent.length > 0 && (
                   <div className="space-y-2">
-                    <h3 className="font-semibold">Загруженные файлы:</h3>
-                    {mediaContent.map((media) => (
-                      <div
-                        key={media.id}
-                        className="flex items-center justify-between p-4 border border-border rounded-lg"
-                      >
-                        <span>{media.title}</span>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => deleteMedia(media.id, media.file_url)}
+                    <h3 className="font-semibold mb-4">Управление медиафайлами (трансляция 24/7):</h3>
+                    <div className="space-y-3">
+                      {mediaContent.map((media) => (
+                        <div
+                          key={media.id}
+                          className="p-4 border border-border rounded-lg bg-card space-y-3"
                         >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="font-semibold truncate">{media.title}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {media.is_24_7 ? "🟢 В трансляции 24/7" : "⏸️ Не активен"}
+                              </p>
+                            </div>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => deleteMedia(media.id, media.file_url)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant={media.is_24_7 ? "default" : "outline"}
+                              size="sm"
+                              onClick={async () => {
+                                const { error } = await supabase
+                                  .from("media_content")
+                                  .update({ is_24_7: !media.is_24_7 })
+                                  .eq("id", media.id);
+                                
+                                if (!error) {
+                                  fetchMediaContent();
+                                  toast({
+                                    title: media.is_24_7 ? "Остановлено" : "Запущено",
+                                    description: media.is_24_7 ? "Файл убран из трансляции" : "Файл запущен в трансляцию 24/7"
+                                  });
+                                }
+                              }}
+                            >
+                              {media.is_24_7 ? "Остановить 24/7" : "Запустить 24/7"}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
