@@ -41,6 +41,7 @@ interface Channel {
   stream_key: string | null;
   is_live: boolean;
   user_id: string;
+  mux_playback_id: string | null;
 }
 
 interface MediaContent {
@@ -81,6 +82,9 @@ const ChannelView = () => {
     // Load existing stream key if available
     if (channel?.stream_key) {
       setMuxStreamKey(channel.stream_key);
+    }
+    if (channel?.mux_playback_id) {
+      setMuxPlaybackId(channel.mux_playback_id);
     }
   }, [channel]);
 
@@ -336,6 +340,7 @@ const ChannelView = () => {
       setChannel({
         ...channel,
         stream_key: data.streamKey,
+        mux_playback_id: data.playbackId,
       });
 
       toast({

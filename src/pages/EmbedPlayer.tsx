@@ -6,6 +6,8 @@ interface Channel {
   id: string;
   title: string;
   channel_type: "tv" | "radio";
+  streaming_method: "upload" | "live" | "scheduled";
+  mux_playback_id: string | null;
 }
 
 interface MediaContent {
@@ -17,7 +19,8 @@ interface MediaContent {
 const EmbedPlayer = () => {
   const { id } = useParams<{ id: string }>();
   const [channel, setChannel] = useState<Channel | null>(null);
-  const [mediaContent, setMediaContent] = useState<MediaContent | null>(null);
+  const [mediaContent, setMediaContent] = useState<MediaContent[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,23 +33,24 @@ const EmbedPlayer = () => {
     try {
       const { data: channelData, error: channelError } = await supabase
         .from("channels")
-        .select("id, title, channel_type")
+        .select("id, title, channel_type, streaming_method, mux_playback_id")
         .eq("id", id)
         .single();
 
       if (channelError) throw channelError;
       setChannel(channelData);
 
-      const { data: mediaData, error: mediaError } = await supabase
-        .from("media_content")
-        .select("id, title, file_url")
-        .eq("channel_id", id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+      // Only fetch media content if not live streaming
+      if (channelData.streaming_method !== "live") {
+        const { data: mediaData, error: mediaError } = await supabase
+          .from("media_content")
+          .select("id, title, file_url")
+          .eq("channel_id", id)
+          .order("created_at", { ascending: false });
 
-      if (!mediaError && mediaData) {
-        setMediaContent(mediaData);
+        if (!mediaError && mediaData) {
+          setMediaContent(mediaData);
+        }
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -63,7 +67,30 @@ const EmbedPlayer = () => {
     );
   }
 
-  if (!channel || !mediaContent) {
+  if (!channel) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-black">
+        <p className="text-white">Канал не найден</p>
+      </div>
+    );
+  }
+
+  // Live streaming with Mux
+  if (channel.streaming_method === "live" && channel.mux_playback_id) {
+    return (
+      <div className="w-full h-full bg-black">
+        <iframe
+          src={`https://stream.mux.com/${channel.mux_playback_id}.html?autoplay=true`}
+          style={{ width: '100%', height: '100%', border: 0 }}
+          allow="autoplay; fullscreen"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
+
+  // Uploaded content
+  if (mediaContent.length === 0) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-black">
         <p className="text-white">Контент не найден</p>
@@ -71,19 +98,38 @@ const EmbedPlayer = () => {
     );
   }
 
+  const currentMedia = mediaContent[currentIndex];
+
+  const handleEnded = () => {
+    if (currentIndex < mediaContent.length - 1) {
+      setCurrentIndex(currentIndex + 1);
+    } else {
+      setCurrentIndex(0);
+    }
+  };
+
   return (
     <div className="w-full h-full bg-black">
       {channel.channel_type === "tv" ? (
         <video
-          src={mediaContent.file_url}
+          key={currentMedia.id}
+          src={currentMedia.file_url}
           controls
           autoPlay
+          onEnded={handleEnded}
           className="w-full h-full"
         />
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center">
           <h2 className="text-white text-2xl mb-4">{channel.title}</h2>
-          <audio src={mediaContent.file_url} controls autoPlay className="w-full max-w-md" />
+          <audio
+            key={currentMedia.id}
+            src={currentMedia.file_url}
+            controls
+            autoPlay
+            onEnded={handleEnded}
+            className="w-full max-w-md"
+          />
         </div>
       )}
     </div>

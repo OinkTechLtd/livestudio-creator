@@ -21,6 +21,7 @@ export type Database = {
           description: string | null
           id: string
           is_live: boolean | null
+          mux_playback_id: string | null
           stream_key: string | null
           streaming_method:
             | Database["public"]["Enums"]["streaming_method"]
@@ -37,6 +38,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_live?: boolean | null
+          mux_playback_id?: string | null
           stream_key?: string | null
           streaming_method?:
             | Database["public"]["Enums"]["streaming_method"]
@@ -53,6 +55,7 @@ export type Database = {
           description?: string | null
           id?: string
           is_live?: boolean | null
+          mux_playback_id?: string | null
           stream_key?: string | null
           streaming_method?:
             | Database["public"]["Enums"]["streaming_method"]
