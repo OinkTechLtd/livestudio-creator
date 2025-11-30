@@ -269,7 +269,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_storage_usage: { Args: { user_uuid: string }; Returns: number }
     }
     Enums: {
       channel_type: "tv" | "radio"
