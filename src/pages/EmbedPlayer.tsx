@@ -119,10 +119,15 @@ const EmbedPlayer = () => {
           <video
             key={currentMedia.id}
             src={currentMedia.file_url}
-            controls
             autoPlay
+            loop={false}
+            playsInline
             onEnded={handleEnded}
-            className="w-full h-full"
+            onContextMenu={(e) => e.preventDefault()}
+            controlsList="nodownload nofullscreen noremoteplayback"
+            disablePictureInPicture
+            className="w-full h-full object-contain"
+            style={{ pointerEvents: 'none' }}
           />
         </>
       ) : (
@@ -130,7 +135,7 @@ const EmbedPlayer = () => {
           <div className="text-center space-y-6">
             <div className="w-32 h-32 mx-auto bg-white/10 rounded-full flex items-center justify-center mb-4">
               <svg className="w-16 h-16 text-white animate-pulse" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+                <path d="M18.41 16.59L13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6zm-4 0h2v12H2z" />
               </svg>
             </div>
             <div className="bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold inline-flex items-center gap-2">
@@ -142,10 +147,12 @@ const EmbedPlayer = () => {
             <audio
               key={currentMedia.id}
               src={currentMedia.file_url}
-              controls
               autoPlay
               onEnded={handleEnded}
+              onContextMenu={(e) => e.preventDefault()}
+              controlsList="nodownload"
               className="w-full max-w-md mx-auto mt-6"
+              style={{ pointerEvents: 'none' }}
             />
           </div>
         </div>

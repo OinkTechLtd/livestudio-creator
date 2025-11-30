@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      channel_views: {
+        Row: {
+          channel_id: string
+          duration_seconds: number | null
+          id: string
+          viewed_at: string | null
+          viewer_id: string | null
+        }
+        Insert: {
+          channel_id: string
+          duration_seconds?: number | null
+          id?: string
+          viewed_at?: string | null
+          viewer_id?: string | null
+        }
+        Update: {
+          channel_id?: string
+          duration_seconds?: number | null
+          id?: string
+          viewed_at?: string | null
+          viewer_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_views_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channel_views_viewer_id_fkey"
+            columns: ["viewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channels: {
         Row: {
           channel_type: Database["public"]["Enums"]["channel_type"]
@@ -228,6 +267,54 @@ export type Database = {
         }
         Relationships: []
       }
+      reports: {
+        Row: {
+          channel_id: string
+          created_at: string | null
+          description: string | null
+          id: string
+          reason: string
+          reporter_id: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          reason: string
+          reporter_id: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          reason?: string
+          reporter_id?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_reporter_id_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscriptions: {
         Row: {
           channel_id: string
@@ -264,14 +351,43 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       get_user_storage_usage: { Args: { user_uuid: string }; Returns: number }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
+      app_role: "admin" | "moderator" | "user"
       channel_type: "tv" | "radio"
       streaming_method: "upload" | "live" | "scheduled"
     }
@@ -401,6 +517,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "moderator", "user"],
       channel_type: ["tv", "radio"],
       streaming_method: ["upload", "live", "scheduled"],
     },
