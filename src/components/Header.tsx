@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tv, Radio, LogOut, User, PlusCircle } from "lucide-react";
+import { Tv, Radio, LogOut, User, PlusCircle, Search } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 const Header = () => {
@@ -46,6 +46,13 @@ const Header = () => {
           >
             <Radio className="w-4 h-4" />
             Радио
+          </Link>
+          <Link
+            to="/search"
+            className="flex items-center gap-2 text-sm font-medium transition-colors hover:text-accent"
+          >
+            <Search className="w-4 h-4" />
+            Поиск
           </Link>
         </nav>
 

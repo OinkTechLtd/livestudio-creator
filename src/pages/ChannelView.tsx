@@ -15,7 +15,9 @@ import {
   Upload, 
   Trash2,
   Radio as RadioIcon,
-  Tv
+  Tv,
+  Flag,
+  BarChart3
 } from "lucide-react";
 import Header from "@/components/Header";
 import {
@@ -30,6 +32,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LikeDislikeSection from "@/components/LikeDislikeSection";
 import CommentsSection from "@/components/CommentsSection";
 import SubscribeButton from "@/components/SubscribeButton";
+import ReportDialog from "@/components/ReportDialog";
+import ChannelAnalytics from "@/components/ChannelAnalytics";
 
 interface Channel {
   id: string;
@@ -74,6 +78,7 @@ const ChannelView = () => {
   const [isCreatingStream, setIsCreatingStream] = useState(false);
   const [storageUsage, setStorageUsage] = useState<number>(0);
   const [isCheckingStorage, setIsCheckingStorage] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
 
   useEffect(() => {
     fetchChannel();
@@ -81,7 +86,24 @@ const ChannelView = () => {
     if (user) {
       checkStorageUsage();
     }
+    // Track view
+    trackView();
   }, [id, user]);
+
+  const trackView = async () => {
+    if (!id) return;
+    
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
+      await supabase.from("channel_views").insert({
+        channel_id: id,
+        viewer_id: currentUser?.id || null,
+      });
+    } catch (error) {
+      console.error("Error tracking view:", error);
+    }
+  };
 
   useEffect(() => {
     // Load existing stream key if available
@@ -554,13 +576,28 @@ const ChannelView = () => {
               </div>
             </DialogContent>
           </Dialog>
+
+          {!isOwner && user && (
+            <Button variant="outline" onClick={() => setShowReportDialog(true)}>
+              <Flag className="w-4 h-4 mr-2" />
+              Пожаловаться
+            </Button>
+          )}
         </div>
+
+        <ReportDialog 
+          open={showReportDialog}
+          onOpenChange={setShowReportDialog}
+          channelId={channel.id}
+          channelTitle={channel.title}
+        />
 
         {/* Tabs for content */}
         <Tabs defaultValue="player" className="w-full">
           <TabsList>
             <TabsTrigger value="player">Плеер</TabsTrigger>
             {isOwner && <TabsTrigger value="media">Медиа файлы</TabsTrigger>}
+            {isOwner && <TabsTrigger value="analytics"><BarChart3 className="w-4 h-4 mr-2 inline" />Аналитика</TabsTrigger>}
             {isOwner && channel.streaming_method === "live" && (
               <TabsTrigger value="obs">OBS настройки</TabsTrigger>
             )}
@@ -588,9 +625,14 @@ const ChannelView = () => {
                       <video
                         key={mediaContent[currentMediaIndex].id}
                         src={mediaContent[currentMediaIndex].file_url}
-                        controls
                         autoPlay
+                        loop={false}
+                        playsInline
                         className="w-full h-full object-contain"
+                        onContextMenu={(e) => e.preventDefault()}
+                        controlsList="nodownload nofullscreen noremoteplayback"
+                        disablePictureInPicture
+                        style={{ pointerEvents: 'none' }}
                         onEnded={() => {
                           if (currentMediaIndex < mediaContent.length - 1) {
                             setCurrentMediaIndex(currentMediaIndex + 1);
@@ -613,9 +655,11 @@ const ChannelView = () => {
                         <audio
                           key={mediaContent[currentMediaIndex].id}
                           src={mediaContent[currentMediaIndex].file_url}
-                          controls
                           autoPlay
                           className="w-full max-w-md"
+                          onContextMenu={(e) => e.preventDefault()}
+                          controlsList="nodownload"
+                          style={{ pointerEvents: 'none' }}
                           onEnded={() => {
                             if (currentMediaIndex < mediaContent.length - 1) {
                               setCurrentMediaIndex(currentMediaIndex + 1);
@@ -840,6 +884,13 @@ const ChannelView = () => {
             </TabsContent>
           )}
         </Tabs>
+
+        {isOwner && (
+          <div className="mt-8">
+            <h2 className="text-2xl font-bold mb-4">Аналитика канала</h2>
+            <ChannelAnalytics channelId={channel.id} />
+          </div>
+        )}
 
         {/* Comments Section */}
         <div className="mt-8">
