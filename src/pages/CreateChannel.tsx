@@ -58,15 +58,14 @@ const CreateChannel = () => {
   };
 
   const uploadThumbnail = async (channelId: string): Promise<string | null> => {
-    if (!thumbnailFile) return null;
+    if (!thumbnailFile || !user) return null;
 
     const fileExt = thumbnailFile.name.split(".").pop();
-    const fileName = `${channelId}-${Date.now()}.${fileExt}`;
-    const filePath = `${fileName}`;
+    const fileName = `${user.id}/${channelId}-${Date.now()}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
       .from("channel-thumbnails")
-      .upload(filePath, thumbnailFile);
+      .upload(fileName, thumbnailFile);
 
     if (uploadError) {
       throw uploadError;
@@ -74,7 +73,7 @@ const CreateChannel = () => {
 
     const { data } = supabase.storage
       .from("channel-thumbnails")
-      .getPublicUrl(filePath);
+      .getPublicUrl(fileName);
 
     return data.publicUrl;
   };

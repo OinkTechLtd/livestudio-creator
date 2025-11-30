@@ -72,11 +72,16 @@ const ChannelView = () => {
   const [muxStreamKey, setMuxStreamKey] = useState<string>("");
   const [muxPlaybackId, setMuxPlaybackId] = useState<string>("");
   const [isCreatingStream, setIsCreatingStream] = useState(false);
+  const [storageUsage, setStorageUsage] = useState<number>(0);
+  const [isCheckingStorage, setIsCheckingStorage] = useState(false);
 
   useEffect(() => {
     fetchChannel();
     fetchMediaContent();
-  }, [id]);
+    if (user) {
+      checkStorageUsage();
+    }
+  }, [id, user]);
 
   useEffect(() => {
     // Load existing stream key if available
@@ -133,6 +138,24 @@ const ChannelView = () => {
     }
   };
 
+  const checkStorageUsage = async () => {
+    if (!user) return;
+    
+    setIsCheckingStorage(true);
+    try {
+      const { data, error } = await supabase.rpc('get_user_storage_usage', {
+        user_uuid: user.id
+      });
+
+      if (error) throw error;
+      setStorageUsage(data || 0);
+    } catch (error) {
+      console.error("Error checking storage:", error);
+    } finally {
+      setIsCheckingStorage(false);
+    }
+  };
+
   const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -154,15 +177,14 @@ const ChannelView = () => {
   };
 
   const uploadThumbnail = async (): Promise<string | null> => {
-    if (!thumbnailFile || !channel) return null;
+    if (!thumbnailFile || !channel || !user) return null;
 
     const fileExt = thumbnailFile.name.split(".").pop();
-    const fileName = `${channel.id}-${Date.now()}.${fileExt}`;
-    const filePath = `${fileName}`;
+    const fileName = `${user.id}/${channel.id}-${Date.now()}.${fileExt}`;
 
     // Delete old thumbnail if exists
     if (channel.thumbnail_url) {
-      const oldPath = channel.thumbnail_url.split("/").pop();
+      const oldPath = channel.thumbnail_url.split("/").slice(-2).join("/");
       if (oldPath) {
         await supabase.storage.from("channel-thumbnails").remove([oldPath]);
       }
@@ -170,13 +192,13 @@ const ChannelView = () => {
 
     const { error: uploadError } = await supabase.storage
       .from("channel-thumbnails")
-      .upload(filePath, thumbnailFile);
+      .upload(fileName, thumbnailFile);
 
     if (uploadError) throw uploadError;
 
     const { data } = supabase.storage
       .from("channel-thumbnails")
-      .getPublicUrl(filePath);
+      .getPublicUrl(fileName);
 
     return data.publicUrl;
   };
@@ -227,7 +249,7 @@ const ChannelView = () => {
 
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !channel) return;
+    if (!file || !channel || !user) return;
 
     const maxSize = 500 * 1024 * 1024; // 500MB
     if (file.size > maxSize) {
@@ -239,9 +261,21 @@ const ChannelView = () => {
       return;
     }
 
+    // Check 5GB storage limit
+    const storageLimit = 5 * 1024 * 1024 * 1024; // 5GB in bytes
+    if (storageUsage + file.size > storageLimit) {
+      const remaining = (storageLimit - storageUsage) / (1024 * 1024 * 1024);
+      toast({
+        title: "Превышен лимит хранилища",
+        description: `У вас осталось ${remaining.toFixed(2)} GB свободного места. Удалите старые файлы для освобождения места.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const fileExt = file.name.split(".").pop();
-      const fileName = `${channel.id}/${Date.now()}.${fileExt}`;
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from("media-uploads")
@@ -271,6 +305,10 @@ const ChannelView = () => {
       });
 
       fetchMediaContent();
+      checkStorageUsage();
+      
+      // Reset input
+      e.target.value = '';
     } catch (error: any) {
       toast({
         title: "Ошибка",
@@ -296,10 +334,11 @@ const ChannelView = () => {
 
       toast({
         title: "Удалено",
-        description: "Медиа файл удален",
+        description: "Медиа файл удален, хранилище освобождено",
       });
 
       fetchMediaContent();
+      checkStorageUsage();
     } catch (error: any) {
       toast({
         title: "Ошибка",
@@ -307,6 +346,11 @@ const ChannelView = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const formatBytes = (bytes: number) => {
+    const gb = bytes / (1024 * 1024 * 1024);
+    return gb.toFixed(2);
   };
 
   const getEmbedCode = () => {
@@ -608,6 +652,25 @@ const ChannelView = () => {
           {isOwner && (
             <TabsContent value="media" className="mt-6">
               <div className="space-y-4">
+                {/* Storage Usage Display */}
+                <div className="bg-card border border-border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-semibold">Использование хранилища:</span>
+                    <span className="text-sm font-mono">
+                      {isCheckingStorage ? "..." : `${formatBytes(storageUsage)} / 5.00 GB`}
+                    </span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div 
+                      className="bg-primary h-2 rounded-full transition-all"
+                      style={{ width: `${Math.min((storageUsage / (5 * 1024 * 1024 * 1024)) * 100, 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Осталось: {formatBytes(Math.max(0, (5 * 1024 * 1024 * 1024) - storageUsage))} GB
+                  </p>
+                </div>
+
                 <div>
                   <Label htmlFor="media-upload" className="cursor-pointer">
                     <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary transition-colors">
@@ -631,7 +694,9 @@ const ChannelView = () => {
 
                 {mediaContent.length > 0 && (
                   <div className="space-y-2">
-                    <h3 className="font-semibold mb-4">Управление медиафайлами (трансляция 24/7):</h3>
+                    <h3 className="font-semibold mb-4">
+                      Управление медиафайлами ({mediaContent.length} файл{mediaContent.length > 1 ? 'ов' : ''}):
+                    </h3>
                     <div className="space-y-3">
                       {mediaContent.map((media) => (
                         <div
