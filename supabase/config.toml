@@ -1,4 +1,7 @@
 project_id = "aqeleulwobgamdffkfri"
 
 [functions.mux-create-stream]
-verify_jwt = true
+verify_jwt = false
+
+[functions.hls-playlist]
+verify_jwt = false

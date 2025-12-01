@@ -62,7 +62,9 @@ const EmbedPlayer = () => {
   if (loading) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-black">
-        <p className="text-white">Загрузка...</p>
+        <div className="animate-pulse">
+          <p className="text-white">Загрузка плеера...</p>
+        </div>
       </div>
     );
   }
@@ -71,6 +73,15 @@ const EmbedPlayer = () => {
     return (
       <div className="w-full h-full flex items-center justify-center bg-black">
         <p className="text-white">Канал не найден</p>
+      </div>
+    );
+  }
+
+  // For uploaded content - check if media exists
+  if (channel.streaming_method !== "live" && mediaContent.length === 0) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-black">
+        <p className="text-white">Нет доступного контента</p>
       </div>
     );
   }
@@ -89,15 +100,7 @@ const EmbedPlayer = () => {
     );
   }
 
-  // Uploaded content
-  if (mediaContent.length === 0) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-black">
-        <p className="text-white">Контент не найден</p>
-      </div>
-    );
-  }
-
+  // Uploaded content - should have media at this point
   const currentMedia = mediaContent[currentIndex];
 
   const handleEnded = () => {
