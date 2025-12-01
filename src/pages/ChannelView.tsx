@@ -34,6 +34,7 @@ import CommentsSection from "@/components/CommentsSection";
 import SubscribeButton from "@/components/SubscribeButton";
 import ReportDialog from "@/components/ReportDialog";
 import ChannelAnalytics from "@/components/ChannelAnalytics";
+import LiveChat from "@/components/LiveChat";
 
 interface Channel {
   id: string;
@@ -892,9 +893,16 @@ const ChannelView = () => {
           </div>
         )}
 
-        {/* Comments Section */}
-        <div className="mt-8">
-          <CommentsSection channelId={channel.id} />
+        {/* Comments and Live Chat Section - side by side on desktop */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 mt-8">
+          <div>
+            <CommentsSection channelId={channel.id} />
+          </div>
+          
+          {/* Live Chat */}
+          <div className="bg-card border border-border rounded-lg overflow-hidden h-[600px] lg:sticky lg:top-4">
+            <LiveChat channelId={channel.id} />
+          </div>
         </div>
       </main>
     </div>

@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      channel_categories: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       channel_views: {
         Row: {
           channel_id: string
@@ -55,6 +76,7 @@ export type Database = {
       }
       channels: {
         Row: {
+          category_id: string | null
           channel_type: Database["public"]["Enums"]["channel_type"]
           created_at: string
           description: string | null
@@ -72,6 +94,7 @@ export type Database = {
           viewer_count: number | null
         }
         Insert: {
+          category_id?: string | null
           channel_type: Database["public"]["Enums"]["channel_type"]
           created_at?: string
           description?: string | null
@@ -89,6 +112,7 @@ export type Database = {
           viewer_count?: number | null
         }
         Update: {
+          category_id?: string | null
           channel_type?: Database["public"]["Enums"]["channel_type"]
           created_at?: string
           description?: string | null
@@ -107,7 +131,53 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "channels_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "channel_categories"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "channels_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_messages: {
+        Row: {
+          channel_id: string
+          created_at: string | null
+          id: string
+          message: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string | null
+          id?: string
+          message: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string | null
+          id?: string
+          message?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_messages_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
