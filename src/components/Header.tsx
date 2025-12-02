@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tv, Radio, LogOut, User, PlusCircle, Search } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const Header = () => {
   const { user, signOut } = useAuth();
@@ -67,6 +68,7 @@ const Header = () => {
                 <PlusCircle className="w-4 h-4" />
                 Создать канал
               </Button>
+              <NotificationBell />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full">
