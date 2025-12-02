@@ -17,7 +17,10 @@ import {
   Radio as RadioIcon,
   Tv,
   Flag,
-  BarChart3
+  BarChart3,
+  ExternalLink,
+  Link,
+  Copy
 } from "lucide-react";
 import Header from "@/components/Header";
 import {
@@ -381,12 +384,29 @@ const ChannelView = () => {
     return `<iframe src="${embedUrl}" width="800" height="450" frameborder="0" allowfullscreen></iframe>`;
   };
 
+  const getM3u8Url = () => {
+    return `https://aqeleulwobgamdffkfri.functions.supabase.co/hls-playlist?channelId=${channel?.id}`;
+  };
+
   const copyEmbedCode = () => {
     navigator.clipboard.writeText(getEmbedCode());
     toast({
       title: "Скопировано",
       description: "Код для встраивания скопирован в буфер обмена",
     });
+  };
+
+  const copyM3u8Url = () => {
+    navigator.clipboard.writeText(getM3u8Url());
+    toast({
+      title: "Скопировано",
+      description: "M3U8 ссылка скопирована в буфер обмена",
+    });
+  };
+
+  const openPopoutPlayer = () => {
+    const popoutUrl = `${window.location.origin}/popout/${channel?.id}`;
+    window.open(popoutUrl, 'popout', 'width=1200,height=700,menubar=no,toolbar=no,location=no,status=no');
   };
 
   const createMuxStream = async () => {
@@ -564,19 +584,39 @@ const ChannelView = () => {
               <DialogHeader>
                 <DialogTitle>Встроить плеер на сайт</DialogTitle>
                 <DialogDescription>
-                  Скопируйте этот код и вставьте его на ваш сайт
+                  Скопируйте код или ссылку для добавления на ваш сайт
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
-                <div className="bg-muted p-4 rounded-lg">
-                  <code className="text-sm break-all">{getEmbedCode()}</code>
+                <div>
+                  <Label className="text-sm font-semibold mb-2 block">HTML код (iframe)</Label>
+                  <div className="bg-muted p-4 rounded-lg">
+                    <code className="text-sm break-all">{getEmbedCode()}</code>
+                  </div>
+                  <Button onClick={copyEmbedCode} className="w-full mt-2">
+                    <Copy className="w-4 h-4 mr-2" />
+                    Скопировать iframe код
+                  </Button>
                 </div>
-                <Button onClick={copyEmbedCode} className="w-full">
-                  Скопировать код
-                </Button>
+                
+                <div className="border-t pt-4">
+                  <Label className="text-sm font-semibold mb-2 block">M3U8 плейлист (для Video.js, VLC и др.)</Label>
+                  <div className="bg-muted p-4 rounded-lg">
+                    <code className="text-sm break-all">{getM3u8Url()}</code>
+                  </div>
+                  <Button onClick={copyM3u8Url} variant="secondary" className="w-full mt-2">
+                    <Link className="w-4 h-4 mr-2" />
+                    Скопировать M3U8 ссылку
+                  </Button>
+                </div>
               </div>
             </DialogContent>
           </Dialog>
+
+          <Button variant="outline" onClick={openPopoutPlayer}>
+            <ExternalLink className="w-4 h-4 mr-2" />
+            Открыть в окне
+          </Button>
 
           {!isOwner && user && (
             <Button variant="outline" onClick={() => setShowReportDialog(true)}>
@@ -608,7 +648,21 @@ const ChannelView = () => {
             <div className="bg-card border-2 border-border rounded-lg p-8">
               <div className="space-y-4">
                 {channel.streaming_method === "live" && muxPlaybackId ? (
-                  <div className="aspect-video bg-muted rounded-lg overflow-hidden">
+                  <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
+                    {/* Channel Avatar Overlay */}
+                    {channel.thumbnail_url && (
+                      <div className="absolute top-4 right-4 z-20">
+                        <img 
+                          src={channel.thumbnail_url} 
+                          alt={channel.title}
+                          className="w-14 h-14 rounded-full border-2 border-white/50 object-cover shadow-lg"
+                        />
+                      </div>
+                    )}
+                    <div className="absolute top-4 left-4 bg-destructive text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-2 z-10">
+                      <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                      LIVE
+                    </div>
                     <iframe
                       src={`https://stream.mux.com/${muxPlaybackId}.html?autoplay=true`}
                       style={{ width: '100%', height: '100%', border: 0 }}
@@ -618,6 +672,16 @@ const ChannelView = () => {
                   </div>
                 ) : mediaContent.length > 0 ? (
                   <div className="aspect-video bg-muted rounded-lg flex items-center justify-center overflow-hidden relative">
+                    {/* Channel Avatar Overlay */}
+                    {channel.thumbnail_url && channel.channel_type === "tv" && (
+                      <div className="absolute top-4 right-4 z-20">
+                        <img 
+                          src={channel.thumbnail_url} 
+                          alt={channel.title}
+                          className="w-14 h-14 rounded-full border-2 border-white/50 object-cover shadow-lg"
+                        />
+                      </div>
+                    )}
                     <div className="absolute top-4 left-4 bg-destructive text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-2 z-10">
                       <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
                       ПРЯМОЙ ЭФИР
@@ -901,7 +965,7 @@ const ChannelView = () => {
           
           {/* Live Chat */}
           <div className="bg-card border border-border rounded-lg overflow-hidden h-[600px] lg:sticky lg:top-4">
-            <LiveChat channelId={channel.id} />
+            <LiveChat channelId={channel.id} channelOwnerId={channel.user_id} />
           </div>
         </div>
       </main>
