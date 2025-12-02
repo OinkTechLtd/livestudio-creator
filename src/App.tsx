@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import CreateChannel from "./pages/CreateChannel";
 import ChannelView from "./pages/ChannelView";
 import EmbedPlayer from "./pages/EmbedPlayer";
+import PopoutPlayer from "./pages/PopoutPlayer";
 import Profile from "./pages/Profile";
 import Search from "./pages/Search";
 import NotFound from "./pages/NotFound";
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/create-channel" element={<CreateChannel />} />
           <Route path="/channel/:id" element={<ChannelView />} />
           <Route path="/embed/:id" element={<EmbedPlayer />} />
+          <Route path="/popout/:id" element={<PopoutPlayer />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/profile/:id" element={<Profile />} />
           <Route path="/search" element={<Search />} />

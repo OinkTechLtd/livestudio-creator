@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { Radio as RadioIcon } from "lucide-react";
 
 interface Channel {
   id: string;
@@ -8,6 +9,7 @@ interface Channel {
   channel_type: "tv" | "radio";
   streaming_method: "upload" | "live" | "scheduled";
   mux_playback_id: string | null;
+  thumbnail_url: string | null;
 }
 
 interface MediaContent {
@@ -33,14 +35,14 @@ const EmbedPlayer = () => {
     try {
       const { data: channelData, error: channelError } = await supabase
         .from("channels")
-        .select("id, title, channel_type, streaming_method, mux_playback_id")
+        .select("id, title, channel_type, streaming_method, mux_playback_id, thumbnail_url")
         .eq("id", id)
         .single();
 
       if (channelError) throw channelError;
       setChannel(channelData);
 
-      // Only fetch media content if not live streaming
+      // Fetch media content for all streaming methods except live
       if (channelData.streaming_method !== "live") {
         const { data: mediaData, error: mediaError } = await supabase
           .from("media_content")
@@ -77,21 +79,26 @@ const EmbedPlayer = () => {
     );
   }
 
-  // For uploaded content - check if media exists
-  if (channel.streaming_method !== "live" && mediaContent.length === 0) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-black">
-        <p className="text-white">Нет доступного контента</p>
-      </div>
-    );
-  }
-
   // Live streaming with Mux
   if (channel.streaming_method === "live" && channel.mux_playback_id) {
     return (
-      <div className="w-full h-full bg-black">
+      <div className="w-full h-full bg-black relative">
+        {/* Channel Avatar */}
+        {channel.thumbnail_url && (
+          <div className="absolute top-4 right-4 z-20">
+            <img 
+              src={channel.thumbnail_url} 
+              alt={channel.title}
+              className="w-12 h-12 rounded-full border-2 border-white/50 object-cover"
+            />
+          </div>
+        )}
+        <div className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-2 z-10">
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+          LIVE
+        </div>
         <iframe
-          src={`https://stream.mux.com/${channel.mux_playback_id}.html?autoplay=true`}
+          src={`https://stream.mux.com/${channel.mux_playback_id}.html?autoplay=true&muted=false`}
           style={{ width: '100%', height: '100%', border: 0 }}
           allow="autoplay; fullscreen"
           allowFullScreen
@@ -100,7 +107,15 @@ const EmbedPlayer = () => {
     );
   }
 
-  // Uploaded content - should have media at this point
+  // Check if media exists for uploaded content
+  if (mediaContent.length === 0) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-black">
+        <p className="text-white">Нет доступного контента</p>
+      </div>
+    );
+  }
+
   const currentMedia = mediaContent[currentIndex];
 
   const handleEnded = () => {
@@ -113,6 +128,17 @@ const EmbedPlayer = () => {
 
   return (
     <div className="w-full h-full bg-black relative">
+      {/* Channel Avatar */}
+      {channel.thumbnail_url && (
+        <div className="absolute top-4 right-4 z-20">
+          <img 
+            src={channel.thumbnail_url} 
+            alt={channel.title}
+            className="w-12 h-12 rounded-full border-2 border-white/50 object-cover"
+          />
+        </div>
+      )}
+      
       {channel.channel_type === "tv" ? (
         <>
           <div className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-2 z-10">
@@ -123,7 +149,7 @@ const EmbedPlayer = () => {
             key={currentMedia.id}
             src={currentMedia.file_url}
             autoPlay
-            loop={false}
+            muted={false}
             playsInline
             onEnded={handleEnded}
             onContextMenu={(e) => e.preventDefault()}
@@ -136,11 +162,17 @@ const EmbedPlayer = () => {
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
           <div className="text-center space-y-6">
-            <div className="w-32 h-32 mx-auto bg-white/10 rounded-full flex items-center justify-center mb-4">
-              <svg className="w-16 h-16 text-white animate-pulse" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M18.41 16.59L13.82 12l4.59-4.59L17 6l-6 6 6 6zM6 6h2v12H6zm-4 0h2v12H2z" />
-              </svg>
-            </div>
+            {channel.thumbnail_url ? (
+              <img 
+                src={channel.thumbnail_url} 
+                alt={channel.title}
+                className="w-32 h-32 mx-auto rounded-full border-4 border-white/20 object-cover"
+              />
+            ) : (
+              <div className="w-32 h-32 mx-auto bg-white/10 rounded-full flex items-center justify-center mb-4">
+                <RadioIcon className="w-16 h-16 text-white animate-pulse" />
+              </div>
+            )}
             <div className="bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold inline-flex items-center gap-2">
               <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
               ПРЯМОЙ ЭФИР
