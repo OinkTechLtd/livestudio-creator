@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import LiveChat from "@/components/LiveChat";
+import EnhancedLiveChat from "@/components/EnhancedLiveChat";
 import { Radio as RadioIcon } from "lucide-react";
 
 interface Channel {
@@ -155,7 +155,7 @@ const PopoutPlayer = () => {
 
       {/* Chat Sidebar */}
       <div className="w-80 h-screen border-l border-gray-800 bg-background">
-        <LiveChat channelId={channel.id} channelOwnerId={channel.user_id} />
+        <EnhancedLiveChat channelId={channel.id} channelOwnerId={channel.user_id} />
       </div>
     </div>
   );
