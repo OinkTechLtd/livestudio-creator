@@ -37,7 +37,11 @@ import CommentsSection from "@/components/CommentsSection";
 import SubscribeButton from "@/components/SubscribeButton";
 import ReportDialog from "@/components/ReportDialog";
 import ChannelAnalytics from "@/components/ChannelAnalytics";
-import LiveChat from "@/components/LiveChat";
+import EnhancedLiveChat from "@/components/EnhancedLiveChat";
+import ChannelSchedule from "@/components/ChannelSchedule";
+import MediaManager from "@/components/MediaManager";
+import DonationButton from "@/components/DonationButton";
+import { Heart } from "lucide-react";
 
 interface Channel {
   id: string;
@@ -50,6 +54,7 @@ interface Channel {
   is_live: boolean;
   user_id: string;
   mux_playback_id: string | null;
+  donation_url: string | null;
 }
 
 interface MediaContent {
@@ -83,6 +88,7 @@ const ChannelView = () => {
   const [storageUsage, setStorageUsage] = useState<number>(0);
   const [isCheckingStorage, setIsCheckingStorage] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [editedDonationUrl, setEditedDonationUrl] = useState("");
 
   useEffect(() => {
     fetchChannel();
@@ -135,6 +141,7 @@ const ChannelView = () => {
       setEditedTitle(data.title);
       setEditedDescription(data.description || "");
       setThumbnailPreview(data.thumbnail_url || "");
+      setEditedDonationUrl(data.donation_url || "");
     } catch (error: any) {
       toast({
         title: "Ошибка",
@@ -245,6 +252,7 @@ const ChannelView = () => {
           title: editedTitle,
           description: editedDescription || null,
           thumbnail_url: thumbnailUrl,
+          donation_url: editedDonationUrl || null,
         })
         .eq("id", channel.id);
 
@@ -255,6 +263,7 @@ const ChannelView = () => {
         title: editedTitle,
         description: editedDescription || null,
         thumbnail_url: thumbnailUrl,
+        donation_url: editedDonationUrl || null,
       });
 
       setIsEditing(false);
@@ -548,15 +557,33 @@ const ChannelView = () => {
         {/* Thumbnail */}
         <div className="mb-8">
           {isEditing && (
-            <div className="mb-4">
-              <Label htmlFor="edit-thumbnail">Обновить обложку</Label>
-              <Input
-                id="edit-thumbnail"
-                type="file"
-                accept="image/*"
-                onChange={handleThumbnailChange}
-                className="mt-2"
-              />
+            <div className="space-y-4 mb-4">
+              <div>
+                <Label htmlFor="edit-thumbnail">Обновить обложку</Label>
+                <Input
+                  id="edit-thumbnail"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleThumbnailChange}
+                  className="mt-2"
+                />
+              </div>
+              <div>
+                <Label htmlFor="donation-url" className="flex items-center gap-2">
+                  <Heart className="w-4 h-4" />
+                  Ссылка на донат
+                </Label>
+                <Input
+                  id="donation-url"
+                  value={editedDonationUrl}
+                  onChange={(e) => setEditedDonationUrl(e.target.value)}
+                  placeholder="https://donate.example.com/your-link"
+                  className="mt-2"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Добавьте ссылку на DonationAlerts, Boosty и т.д.
+                </p>
+              </div>
             </div>
           )}
           {thumbnailPreview && (
@@ -572,6 +599,11 @@ const ChannelView = () => {
         <div className="flex flex-wrap items-center gap-4 mb-6">
           {!isOwner && <SubscribeButton channelId={channel.id} channelTitle={channel.title} />}
           <LikeDislikeSection channelId={channel.id} />
+          
+          {/* Donation Button */}
+          {channel.donation_url && (
+            <DonationButton donationUrl={channel.donation_url} />
+          )}
           
           <Dialog>
             <DialogTrigger asChild>
@@ -637,6 +669,7 @@ const ChannelView = () => {
         <Tabs defaultValue="player" className="w-full">
           <TabsList>
             <TabsTrigger value="player">Плеер</TabsTrigger>
+            <TabsTrigger value="schedule">Расписание</TabsTrigger>
             {isOwner && <TabsTrigger value="media">Медиа файлы</TabsTrigger>}
             {isOwner && <TabsTrigger value="analytics"><BarChart3 className="w-4 h-4 mr-2 inline" />Аналитика</TabsTrigger>}
             {isOwner && channel.streaming_method === "live" && (
@@ -758,103 +791,22 @@ const ChannelView = () => {
             </div>
           </TabsContent>
 
+          {/* Schedule Tab */}
+          <TabsContent value="schedule" className="mt-6">
+            <div className="bg-card border border-border rounded-lg p-6">
+              <ChannelSchedule channelId={channel.id} isOwner={isOwner} />
+            </div>
+          </TabsContent>
+
           {isOwner && (
             <TabsContent value="media" className="mt-6">
-              <div className="space-y-4">
-                {/* Storage Usage Display */}
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold">Использование хранилища:</span>
-                    <span className="text-sm font-mono">
-                      {isCheckingStorage ? "..." : `${formatBytes(storageUsage)} / 5.00 GB`}
-                    </span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div 
-                      className="bg-primary h-2 rounded-full transition-all"
-                      style={{ width: `${Math.min((storageUsage / (5 * 1024 * 1024 * 1024)) * 100, 100)}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Осталось: {formatBytes(Math.max(0, (5 * 1024 * 1024 * 1024) - storageUsage))} GB
-                  </p>
-                </div>
-
-                <div>
-                  <Label htmlFor="media-upload" className="cursor-pointer">
-                    <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary transition-colors">
-                      <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                      <p className="font-semibold mb-2">Загрузить медиа файл</p>
-                      <p className="text-sm text-muted-foreground">
-                        {channel.channel_type === "tv"
-                          ? "Видео файлы (MP4, WebM, до 500MB)"
-                          : "Аудио файлы (MP3, WAV, до 500MB)"}
-                      </p>
-                    </div>
-                  </Label>
-                  <Input
-                    id="media-upload"
-                    type="file"
-                    accept={channel.channel_type === "tv" ? "video/*" : "audio/*"}
-                    onChange={handleMediaUpload}
-                    className="hidden"
-                  />
-                </div>
-
-                {mediaContent.length > 0 && (
-                  <div className="space-y-2">
-                    <h3 className="font-semibold mb-4">
-                      Управление медиафайлами ({mediaContent.length} файл{mediaContent.length > 1 ? 'ов' : ''}):
-                    </h3>
-                    <div className="space-y-3">
-                      {mediaContent.map((media) => (
-                        <div
-                          key={media.id}
-                          className="p-4 border border-border rounded-lg bg-card space-y-3"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <p className="font-semibold truncate">{media.title}</p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {media.is_24_7 ? "🟢 В трансляции 24/7" : "⏸️ Не активен"}
-                              </p>
-                            </div>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => deleteMedia(media.id, media.file_url)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant={media.is_24_7 ? "default" : "outline"}
-                              size="sm"
-                              onClick={async () => {
-                                const { error } = await supabase
-                                  .from("media_content")
-                                  .update({ is_24_7: !media.is_24_7 })
-                                  .eq("id", media.id);
-                                
-                                if (!error) {
-                                  fetchMediaContent();
-                                  toast({
-                                    title: media.is_24_7 ? "Остановлено" : "Запущено",
-                                    description: media.is_24_7 ? "Файл убран из трансляции" : "Файл запущен в трансляцию 24/7"
-                                  });
-                                }
-                              }}
-                            >
-                              {media.is_24_7 ? "Остановить 24/7" : "Запустить 24/7"}
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <MediaManager
+                channelId={channel.id}
+                channelType={channel.channel_type}
+                channelTitle={channel.title}
+                storageUsage={storageUsage}
+                onStorageUpdate={checkStorageUsage}
+              />
             </TabsContent>
           )}
 
@@ -965,7 +917,7 @@ const ChannelView = () => {
           
           {/* Live Chat */}
           <div className="bg-card border border-border rounded-lg overflow-hidden h-[600px] lg:sticky lg:top-4">
-            <LiveChat channelId={channel.id} channelOwnerId={channel.user_id} />
+            <EnhancedLiveChat channelId={channel.id} channelOwnerId={channel.user_id} />
           </div>
         </div>
       </main>
