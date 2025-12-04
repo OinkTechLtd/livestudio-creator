@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, Crown, Shield, UserPlus, UserMinus, Pin, Ban, MoreVertical } from "lucide-react";
+import { Send, Crown, Shield, UserPlus, UserMinus, Pin, Ban, MoreVertical, Bot, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/contexts/LanguageContext";
+import ViewerCounter from "@/components/ViewerCounter";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +26,7 @@ interface ChatMessage {
     username: string;
     avatar_url: string | null;
   };
+  isSystem?: boolean;
 }
 
 interface PinnedMessage {
@@ -40,12 +43,14 @@ interface EnhancedLiveChatProps {
 const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [moderators, setModerators] = useState<string[]>([]);
   const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
   const [pinnedMessage, setPinnedMessage] = useState<ChatMessage | null>(null);
+  const [hasJoined, setHasJoined] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -99,6 +104,26 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
       supabase.removeChannel(channel);
     };
   }, [channelId]);
+
+  // Show welcome message when user joins
+  useEffect(() => {
+    if (user && !hasJoined) {
+      setHasJoined(true);
+      // Add system welcome message locally
+      const welcomeMsg: ChatMessage = {
+        id: `welcome-${Date.now()}`,
+        user_id: 'system',
+        message: `${t("welcome_to_chat")}`,
+        created_at: new Date().toISOString(),
+        profiles: {
+          username: 'StreamLiveTV',
+          avatar_url: null,
+        },
+        isSystem: true,
+      };
+      setMessages(prev => [...prev, welcomeMsg]);
+    }
+  }, [user, hasJoined, t]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -182,8 +207,8 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
     
     if (!user) {
       toast({
-        title: "Требуется авторизация",
-        description: "Войдите чтобы отправлять сообщения",
+        title: t("auth_required"),
+        description: t("login_to_send"),
         variant: "destructive",
       });
       return;
@@ -191,8 +216,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
 
     if (blockedUsers.includes(user.id)) {
       toast({
-        title: "Заблокировано",
-        description: "Вы заблокированы в этом чате",
+        title: t("blocked_user"),
         variant: "destructive",
       });
       return;
@@ -201,6 +225,33 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
     if (!newMessage.trim()) return;
 
     setIsLoading(true);
+    
+    // Award point for sending message
+    const { data: points } = await supabase
+      .from('channel_points')
+      .select('points, messages_sent')
+      .eq('channel_id', channelId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (points) {
+      await supabase
+        .from('channel_points')
+        .update({
+          points: points.points + 2, // 2 points per message
+          messages_sent: points.messages_sent + 1,
+        })
+        .eq('channel_id', channelId)
+        .eq('user_id', user.id);
+    } else {
+      await supabase.from('channel_points').insert({
+        channel_id: channelId,
+        user_id: user.id,
+        points: 2,
+        messages_sent: 1,
+      });
+    }
+
     const { error } = await supabase
       .from('chat_messages')
       .insert({
@@ -211,8 +262,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
 
     if (error) {
       toast({
-        title: "Ошибка",
-        description: "Не удалось отправить сообщение",
+        title: t("error"),
         variant: "destructive",
       });
     } else {
@@ -231,7 +281,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
 
       if (!error) {
         setModerators(prev => prev.filter(id => id !== userId));
-        toast({ title: "Модератор удален" });
+        toast({ title: t("remove_moderator") });
       }
     } else {
       const { error } = await supabase
@@ -240,7 +290,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
 
       if (!error) {
         setModerators(prev => [...prev, userId]);
-        toast({ title: "Модератор назначен" });
+        toast({ title: t("make_moderator") });
       }
     }
   };
@@ -259,7 +309,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
 
       if (!error) {
         setBlockedUsers(prev => prev.filter(id => id !== userId));
-        toast({ title: "Пользователь разблокирован" });
+        toast({ title: t("unblock") });
       }
     } else {
       const { error } = await supabase
@@ -272,7 +322,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
 
       if (!error) {
         setBlockedUsers(prev => [...prev, userId]);
-        toast({ title: "Пользователь заблокирован" });
+        toast({ title: t("block") });
       }
     }
   };
@@ -280,7 +330,6 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
   const pinMessage = async (messageId: string) => {
     if (!user) return;
 
-    // First unpin existing
     await supabase
       .from('pinned_messages')
       .delete()
@@ -295,7 +344,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
       });
 
     if (!error) {
-      toast({ title: "Сообщение закреплено" });
+      toast({ title: t("pin") });
       fetchPinnedMessage();
     }
   };
@@ -308,7 +357,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
 
     if (!error) {
       setPinnedMessage(null);
-      toast({ title: "Сообщение откреплено" });
+      toast({ title: t("unpin") });
     }
   };
 
@@ -316,18 +365,26 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
   const isModerator = (userId: string) => moderators.includes(userId);
   const isChannelOwner = (userId: string) => userId === channelOwnerId;
   const canModerate = isOwner || (user && isModerator(user.id));
+  const isBot = (message: string) => message.startsWith('🤖');
 
-  const getUserBadge = (userId: string) => {
+  const getUserBadge = (userId: string, message?: string) => {
+    if (message?.startsWith('🤖')) {
+      return (
+        <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">
+          {t("bot")}
+        </span>
+      );
+    }
     if (isChannelOwner(userId)) {
       return (
-        <span title="Владелец канала">
+        <span title={t("channel_owner")}>
           <Crown className="w-4 h-4 text-yellow-500 inline-block ml-1" />
         </span>
       );
     }
     if (isModerator(userId)) {
       return (
-        <span title="Модератор">
+        <span title={t("moderator")}>
           <Shield className="w-4 h-4 text-green-500 inline-block ml-1" />
         </span>
       );
@@ -335,7 +392,8 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
     return null;
   };
 
-  const getUsernameColor = (userId: string) => {
+  const getUsernameColor = (userId: string, isSystem?: boolean) => {
+    if (isSystem) return "text-purple-400 font-bold";
     if (isChannelOwner(userId)) return "text-yellow-500 font-bold";
     if (isModerator(userId)) return "text-green-500 font-semibold";
     return "font-medium";
@@ -344,11 +402,14 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
   return (
     <div className="flex flex-col h-full bg-background border-l border-border">
       <div className="p-4 border-b border-border">
-        <h3 className="font-semibold text-lg flex items-center gap-2">
-          Live чат
-          <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-        </h3>
-        <p className="text-sm text-muted-foreground">{messages.length} сообщений</p>
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-lg flex items-center gap-2">
+            {t("live_chat")}
+            <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+          </h3>
+          <ViewerCounter channelId={channelId} />
+        </div>
+        <p className="text-sm text-muted-foreground">{messages.length} {t("messages")}</p>
       </div>
 
       {/* Pinned Message */}
@@ -357,7 +418,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-2">
               <Pin className="w-4 h-4 text-primary" />
-              <span className="text-xs font-semibold text-primary">Закреплено</span>
+              <span className="text-xs font-semibold text-primary">{t("pinned")}</span>
             </div>
             {canModerate && (
               <Button variant="ghost" size="sm" onClick={unpinMessage} className="h-6 px-2">
@@ -375,19 +436,32 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
       <ScrollArea ref={scrollRef} className="flex-1 p-4">
         <div className="space-y-3">
           {messages.map((msg) => (
-            <div key={msg.id} className="flex gap-2 group hover:bg-muted/30 p-2 rounded-lg transition-colors">
+            <div 
+              key={msg.id} 
+              className={`flex gap-2 group hover:bg-muted/30 p-2 rounded-lg transition-colors ${
+                msg.isSystem ? 'bg-purple-500/10 border border-purple-500/20' : ''
+              }`}
+            >
               <Avatar className="h-8 w-8 flex-shrink-0">
-                <AvatarImage src={msg.profiles.avatar_url || undefined} />
-                <AvatarFallback className="text-xs">
-                  {msg.profiles.username.charAt(0).toUpperCase()}
-                </AvatarFallback>
+                {msg.isSystem ? (
+                  <AvatarFallback className="bg-purple-500/20">
+                    <Bot className="w-4 h-4 text-purple-400" />
+                  </AvatarFallback>
+                ) : (
+                  <>
+                    <AvatarImage src={msg.profiles.avatar_url || undefined} />
+                    <AvatarFallback className="text-xs">
+                      {msg.profiles.username.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </>
+                )}
               </Avatar>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1 flex-wrap">
-                  <span className={`text-sm ${getUsernameColor(msg.user_id)}`}>
+                  <span className={`text-sm ${getUsernameColor(msg.user_id, msg.isSystem)}`}>
                     {msg.profiles.username}
                   </span>
-                  {getUserBadge(msg.user_id)}
+                  {getUserBadge(msg.user_id, msg.message)}
                   <span className="text-xs text-muted-foreground">
                     {new Date(msg.created_at).toLocaleTimeString('ru-RU', { 
                       hour: '2-digit', 
@@ -396,7 +470,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
                   </span>
                   
                   {/* Moderation menu */}
-                  {canModerate && !isChannelOwner(msg.user_id) && (
+                  {canModerate && !isChannelOwner(msg.user_id) && !msg.isSystem && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100">
@@ -406,7 +480,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => pinMessage(msg.id)}>
                           <Pin className="w-4 h-4 mr-2" />
-                          Закрепить
+                          {t("pin")}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {isOwner && (
@@ -414,12 +488,12 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
                             {isModerator(msg.user_id) ? (
                               <>
                                 <UserMinus className="w-4 h-4 mr-2" />
-                                Убрать модератора
+                                {t("remove_moderator")}
                               </>
                             ) : (
                               <>
                                 <UserPlus className="w-4 h-4 mr-2" />
-                                Назначить модератором
+                                {t("make_moderator")}
                               </>
                             )}
                           </DropdownMenuItem>
@@ -429,7 +503,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
                           className="text-destructive"
                         >
                           <Ban className="w-4 h-4 mr-2" />
-                          {blockedUsers.includes(msg.user_id) ? "Разблокировать" : "Заблокировать"}
+                          {blockedUsers.includes(msg.user_id) ? t("unblock") : t("block")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -447,7 +521,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            placeholder={user ? "Написать сообщение..." : "Войдите для отправки"}
+            placeholder={user ? t("write_message") : t("login_to_send")}
             disabled={!user || isLoading}
             maxLength={500}
             className="bg-muted/50"
