@@ -11,10 +11,13 @@ import {
 import { Tv, Radio, LogOut, User, PlusCircle, Search } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { NotificationBell } from "@/components/NotificationBell";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const Header = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const handleSignOut = async () => {
     await signOut();
@@ -39,25 +42,27 @@ const Header = () => {
             className="flex items-center gap-2 text-sm font-medium transition-colors hover:text-primary"
           >
             <Tv className="w-4 h-4" />
-            ТВ Каналы
+            {t("tv")}
           </Link>
           <Link
             to="/?tab=radio"
             className="flex items-center gap-2 text-sm font-medium transition-colors hover:text-secondary"
           >
             <Radio className="w-4 h-4" />
-            Радио
+            {t("radio")}
           </Link>
           <Link
             to="/search"
             className="flex items-center gap-2 text-sm font-medium transition-colors hover:text-accent"
           >
             <Search className="w-4 h-4" />
-            Поиск
+            {t("search")}
           </Link>
         </nav>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <LanguageSwitcher />
+          
           {user ? (
             <>
               <Button
@@ -66,7 +71,7 @@ const Header = () => {
                 className="hidden md:flex items-center gap-2"
               >
                 <PlusCircle className="w-4 h-4" />
-                Создать канал
+                {t("create_channel")}
               </Button>
               <NotificationBell />
               <DropdownMenu>
@@ -83,23 +88,23 @@ const Header = () => {
                 <DropdownMenuContent align="end" className="w-56 glass-strong">
                   <DropdownMenuItem onClick={() => navigate("/profile")}>
                     <User className="mr-2 h-4 w-4" />
-                    <span>Профиль</span>
+                    <span>{t("profile")}</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate("/create-channel")} className="md:hidden">
                     <PlusCircle className="mr-2 h-4 w-4" />
-                    <span>Создать канал</span>
+                    <span>{t("create_channel")}</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}>
                     <LogOut className="mr-2 h-4 w-4" />
-                    <span>Выйти</span>
+                    <span>{t("logout")}</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
           ) : (
             <Button onClick={() => navigate("/auth")} variant="default">
-              Войти
+              {t("login")}
             </Button>
           )}
         </div>

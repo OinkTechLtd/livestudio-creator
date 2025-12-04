@@ -123,6 +123,130 @@ export type Database = {
           },
         ]
       }
+      channel_playback_state: {
+        Row: {
+          channel_id: string
+          current_media_id: string | null
+          current_position: number
+          id: string
+          is_playing: boolean
+          started_at: string
+          updated_at: string
+        }
+        Insert: {
+          channel_id: string
+          current_media_id?: string | null
+          current_position?: number
+          id?: string
+          is_playing?: boolean
+          started_at?: string
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string
+          current_media_id?: string | null
+          current_position?: number
+          id?: string
+          is_playing?: boolean
+          started_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_playback_state_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: true
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channel_playback_state_current_media_id_fkey"
+            columns: ["current_media_id"]
+            isOneToOne: false
+            referencedRelation: "media_content"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      channel_points: {
+        Row: {
+          channel_id: string
+          created_at: string
+          id: string
+          messages_sent: number
+          points: number
+          total_watch_time: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          id?: string
+          messages_sent?: number
+          points?: number
+          total_watch_time?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          id?: string
+          messages_sent?: number
+          points?: number
+          total_watch_time?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_points_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      channel_rewards: {
+        Row: {
+          channel_id: string
+          cost: number
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          title: string
+        }
+        Insert: {
+          channel_id: string
+          cost?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          title: string
+        }
+        Update: {
+          channel_id?: string
+          cost?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_rewards_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channel_schedule: {
         Row: {
           channel_id: string
@@ -160,6 +284,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "channel_schedule_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      channel_viewers: {
+        Row: {
+          channel_id: string
+          id: string
+          joined_at: string
+          last_seen: string
+          session_id: string
+          user_id: string | null
+        }
+        Insert: {
+          channel_id: string
+          id?: string
+          joined_at?: string
+          last_seen?: string
+          session_id: string
+          user_id?: string | null
+        }
+        Update: {
+          channel_id?: string
+          id?: string
+          joined_at?: string
+          last_seen?: string
+          session_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_viewers_channel_id_fkey"
             columns: ["channel_id"]
             isOneToOne: false
             referencedRelation: "channels"
@@ -708,6 +867,48 @@ export type Database = {
             columns: ["reporter_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reward_redemptions: {
+        Row: {
+          channel_id: string
+          created_at: string
+          id: string
+          reward_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          id?: string
+          reward_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          id?: string
+          reward_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reward_redemptions_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reward_redemptions_reward_id_fkey"
+            columns: ["reward_id"]
+            isOneToOne: false
+            referencedRelation: "channel_rewards"
             referencedColumns: ["id"]
           },
         ]
