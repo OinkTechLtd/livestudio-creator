@@ -35,6 +35,58 @@ export type Database = {
         }
         Relationships: []
       }
+      channel_members: {
+        Row: {
+          channel_id: string
+          created_at: string
+          id: string
+          invited_by: string | null
+          role: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          role: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_members_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channel_members_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channel_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channel_moderators: {
         Row: {
           channel_id: string
@@ -271,6 +323,41 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_bot_messages: {
+        Row: {
+          channel_id: string
+          created_at: string
+          id: string
+          interval_seconds: number
+          is_active: boolean
+          message: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          id?: string
+          interval_seconds?: number
+          is_active?: boolean
+          message: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          id?: string
+          interval_seconds?: number
+          is_active?: boolean
+          message?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_bot_messages_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
             referencedColumns: ["id"]
           },
         ]
@@ -544,6 +631,10 @@ export type Database = {
           bio: string | null
           created_at: string
           id: string
+          notification_channel_update: boolean | null
+          notification_email: boolean | null
+          notification_new_content: boolean | null
+          notification_new_stream: boolean | null
           updated_at: string
           username: string
         }
@@ -552,6 +643,10 @@ export type Database = {
           bio?: string | null
           created_at?: string
           id: string
+          notification_channel_update?: boolean | null
+          notification_email?: boolean | null
+          notification_new_content?: boolean | null
+          notification_new_stream?: boolean | null
           updated_at?: string
           username: string
         }
@@ -560,6 +655,10 @@ export type Database = {
           bio?: string | null
           created_at?: string
           id?: string
+          notification_channel_update?: boolean | null
+          notification_email?: boolean | null
+          notification_new_content?: boolean | null
+          notification_new_stream?: boolean | null
           updated_at?: string
           username?: string
         }
