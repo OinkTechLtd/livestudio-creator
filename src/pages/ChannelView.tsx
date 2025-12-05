@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,7 +20,11 @@ import {
   BarChart3,
   ExternalLink,
   Link,
-  Copy
+  Copy,
+  Users,
+  Bot,
+  Gift,
+  Settings
 } from "lucide-react";
 import Header from "@/components/Header";
 import {
@@ -41,6 +45,9 @@ import EnhancedLiveChat from "@/components/EnhancedLiveChat";
 import ChannelSchedule from "@/components/ChannelSchedule";
 import MediaManager from "@/components/MediaManager";
 import DonationButton from "@/components/DonationButton";
+import ChatBot from "@/components/ChatBot";
+import PointsRewardsSystem from "@/components/PointsRewardsSystem";
+import ChannelMemberManager from "@/components/ChannelMemberManager";
 import { Heart } from "lucide-react";
 
 interface Channel {
@@ -67,6 +74,13 @@ interface MediaContent {
   scheduled_at: string | null;
 }
 
+interface PlaybackState {
+  current_media_id: string | null;
+  current_position: number;
+  is_playing: boolean;
+  started_at: string;
+}
+
 const ChannelView = () => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -89,16 +103,105 @@ const ChannelView = () => {
   const [isCheckingStorage, setIsCheckingStorage] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [editedDonationUrl, setEditedDonationUrl] = useState("");
+  const [playbackState, setPlaybackState] = useState<PlaybackState | null>(null);
+  
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     fetchChannel();
     fetchMediaContent();
+    fetchPlaybackState();
     if (user) {
       checkStorageUsage();
     }
-    // Track view
     trackView();
   }, [id, user]);
+
+  // Subscribe to playback state changes for sync
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`playback-${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "channel_playback_state",
+          filter: `channel_id=eq.${id}`,
+        },
+        (payload: any) => {
+          if (payload.new) {
+            setPlaybackState(payload.new);
+            syncToServerTime(payload.new);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, mediaContent]);
+
+  const fetchPlaybackState = async () => {
+    if (!id) return;
+    
+    const { data } = await supabase
+      .from("channel_playback_state")
+      .select("*")
+      .eq("channel_id", id)
+      .single();
+
+    if (data) {
+      setPlaybackState(data);
+      
+      // Find current media index
+      if (data.current_media_id && mediaContent.length > 0) {
+        const idx = mediaContent.findIndex(m => m.id === data.current_media_id);
+        if (idx !== -1) setCurrentMediaIndex(idx);
+      }
+    }
+  };
+
+  const syncToServerTime = useCallback((state: PlaybackState) => {
+    if (!state || !state.started_at) return;
+
+    const startedAt = new Date(state.started_at).getTime();
+    const now = Date.now();
+    const elapsed = (now - startedAt) / 1000;
+    const targetPosition = state.current_position + elapsed;
+
+    const element = videoRef.current || audioRef.current;
+    if (element) {
+      const diff = Math.abs(targetPosition - element.currentTime);
+      if (diff > 3) {
+        element.currentTime = targetPosition;
+      }
+    }
+
+    // Update current media index
+    if (state.current_media_id && mediaContent.length > 0) {
+      const idx = mediaContent.findIndex(m => m.id === state.current_media_id);
+      if (idx !== -1 && idx !== currentMediaIndex) {
+        setCurrentMediaIndex(idx);
+      }
+    }
+  }, [mediaContent, currentMediaIndex]);
+
+  const updatePlaybackState = async (mediaId: string, position: number) => {
+    if (!id || !user || user.id !== channel?.user_id) return;
+
+    await supabase.from("channel_playback_state").upsert({
+      channel_id: id,
+      current_media_id: mediaId,
+      current_position: Math.floor(position),
+      is_playing: true,
+      started_at: new Date().toISOString(),
+    });
+  };
 
   const trackView = async () => {
     if (!id) return;
@@ -116,7 +219,6 @@ const ChannelView = () => {
   };
 
   useEffect(() => {
-    // Load existing stream key if available
     if (channel?.stream_key) {
       setMuxStreamKey(channel.stream_key);
     }
@@ -215,7 +317,6 @@ const ChannelView = () => {
     const fileExt = thumbnailFile.name.split(".").pop();
     const fileName = `${user.id}/${channel.id}-${Date.now()}.${fileExt}`;
 
-    // Delete old thumbnail if exists
     if (channel.thumbnail_url) {
       const oldPath = channel.thumbnail_url.split("/").slice(-2).join("/");
       if (oldPath) {
@@ -282,107 +383,6 @@ const ChannelView = () => {
     }
   };
 
-  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !channel || !user) return;
-
-    const maxSize = 500 * 1024 * 1024; // 500MB
-    if (file.size > maxSize) {
-      toast({
-        title: "Ошибка",
-        description: "Размер файла не должен превышать 500MB",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Check 5GB storage limit
-    const storageLimit = 5 * 1024 * 1024 * 1024; // 5GB in bytes
-    if (storageUsage + file.size > storageLimit) {
-      const remaining = (storageLimit - storageUsage) / (1024 * 1024 * 1024);
-      toast({
-        title: "Превышен лимит хранилища",
-        description: `У вас осталось ${remaining.toFixed(2)} GB свободного места. Удалите старые файлы для освобождения места.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("media-uploads")
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage
-        .from("media-uploads")
-        .getPublicUrl(fileName);
-
-      const { error: insertError } = await supabase
-        .from("media_content")
-        .insert({
-          channel_id: channel.id,
-          title: file.name,
-          file_url: data.publicUrl,
-          file_type: file.type,
-          is_24_7: false,
-        });
-
-      if (insertError) throw insertError;
-
-      toast({
-        title: "Успешно",
-        description: "Медиа файл загружен",
-      });
-
-      fetchMediaContent();
-      checkStorageUsage();
-      
-      // Reset input
-      e.target.value = '';
-    } catch (error: any) {
-      toast({
-        title: "Ошибка",
-        description: error.message || "Не удалось загрузить файл",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const deleteMedia = async (mediaId: string, fileUrl: string) => {
-    try {
-      // Delete from storage
-      const fileName = fileUrl.split("/").slice(-2).join("/");
-      await supabase.storage.from("media-uploads").remove([fileName]);
-
-      // Delete from database
-      const { error } = await supabase
-        .from("media_content")
-        .delete()
-        .eq("id", mediaId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Удалено",
-        description: "Медиа файл удален, хранилище освобождено",
-      });
-
-      fetchMediaContent();
-      checkStorageUsage();
-    } catch (error: any) {
-      toast({
-        title: "Ошибка",
-        description: error.message || "Не удалось удалить файл",
-        variant: "destructive",
-      });
-    }
-  };
-
   const formatBytes = (bytes: number) => {
     const gb = bytes / (1024 * 1024 * 1024);
     return gb.toFixed(2);
@@ -432,7 +432,6 @@ const ChannelView = () => {
       setMuxStreamKey(data.streamKey);
       setMuxPlaybackId(data.playbackId);
 
-      // Update local channel state
       setChannel({
         ...channel,
         stream_key: data.streamKey,
@@ -463,6 +462,26 @@ const ChannelView = () => {
     });
   };
 
+  const handleMediaEnded = async () => {
+    const nextIndex = (currentMediaIndex + 1) % mediaContent.length;
+    setCurrentMediaIndex(nextIndex);
+    
+    if (isOwner && mediaContent[nextIndex]) {
+      await updatePlaybackState(mediaContent[nextIndex].id, 0);
+    }
+  };
+
+  const handleTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement | HTMLAudioElement>) => {
+    // Owner updates playback state periodically
+    if (isOwner && mediaContent[currentMediaIndex]) {
+      const currentTime = e.currentTarget.currentTime;
+      // Update every 30 seconds
+      if (Math.floor(currentTime) % 30 === 0 && currentTime > 0) {
+        updatePlaybackState(mediaContent[currentMediaIndex].id, currentTime);
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -482,26 +501,26 @@ const ChannelView = () => {
   const isOwner = user?.id === channel.user_id;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-20 md:pb-0">
       <Header />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-3 md:px-4 py-4 md:py-8">
         {/* Channel Header */}
-        <div className="mb-8">
-          <div className="flex items-start justify-between mb-4">
+        <div className="mb-4 md:mb-8">
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-4">
             <div className="flex items-center gap-3">
               {channel.channel_type === "tv" ? (
-                <Tv className="w-8 h-8 text-primary" />
+                <Tv className="w-6 h-6 md:w-8 md:h-8 text-primary" />
               ) : (
-                <RadioIcon className="w-8 h-8 text-primary" />
+                <RadioIcon className="w-6 h-6 md:w-8 md:h-8 text-primary" />
               )}
               {isEditing ? (
                 <Input
                   value={editedTitle}
                   onChange={(e) => setEditedTitle(e.target.value)}
-                  className="text-2xl font-bold"
+                  className="text-xl md:text-2xl font-bold"
                 />
               ) : (
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+                <h1 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
                   {channel.title}
                 </h1>
               )}
@@ -533,7 +552,7 @@ const ChannelView = () => {
                 ) : (
                   <Button onClick={() => setIsEditing(true)} variant="outline" size="sm">
                     <Edit className="w-4 h-4 mr-2" />
-                    Редактировать
+                    <span className="hidden md:inline">Редактировать</span>
                   </Button>
                 )}
               </div>
@@ -549,13 +568,13 @@ const ChannelView = () => {
             />
           ) : (
             channel.description && (
-              <p className="text-muted-foreground">{channel.description}</p>
+              <p className="text-sm md:text-base text-muted-foreground">{channel.description}</p>
             )
           )}
         </div>
 
         {/* Thumbnail */}
-        <div className="mb-8">
+        <div className="mb-4 md:mb-8">
           {isEditing && (
             <div className="space-y-4 mb-4">
               <div>
@@ -596,20 +615,20 @@ const ChannelView = () => {
         </div>
 
         {/* Subscribe, Like/Dislike and Embed Code */}
-        <div className="flex flex-wrap items-center gap-4 mb-6">
+        <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-4 md:mb-6">
           {!isOwner && <SubscribeButton channelId={channel.id} channelTitle={channel.title} />}
           <LikeDislikeSection channelId={channel.id} />
           
-          {/* Donation Button */}
           {channel.donation_url && (
             <DonationButton donationUrl={channel.donation_url} />
           )}
           
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="outline">
-                <Code className="w-4 h-4 mr-2" />
-                Код для встраивания
+              <Button variant="outline" size="sm" className="text-xs md:text-sm">
+                <Code className="w-4 h-4 mr-1 md:mr-2" />
+                <span className="hidden md:inline">Код для встраивания</span>
+                <span className="md:hidden">Embed</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
@@ -645,15 +664,15 @@ const ChannelView = () => {
             </DialogContent>
           </Dialog>
 
-          <Button variant="outline" onClick={openPopoutPlayer}>
-            <ExternalLink className="w-4 h-4 mr-2" />
-            Открыть в окне
+          <Button variant="outline" size="sm" onClick={openPopoutPlayer} className="text-xs md:text-sm">
+            <ExternalLink className="w-4 h-4 mr-1 md:mr-2" />
+            <span className="hidden md:inline">Открыть в окне</span>
           </Button>
 
           {!isOwner && user && (
-            <Button variant="outline" onClick={() => setShowReportDialog(true)}>
-              <Flag className="w-4 h-4 mr-2" />
-              Пожаловаться
+            <Button variant="outline" size="sm" onClick={() => setShowReportDialog(true)} className="text-xs md:text-sm">
+              <Flag className="w-4 h-4 mr-1 md:mr-2" />
+              <span className="hidden md:inline">Пожаловаться</span>
             </Button>
           )}
         </div>
@@ -667,32 +686,54 @@ const ChannelView = () => {
 
         {/* Tabs for content */}
         <Tabs defaultValue="player" className="w-full">
-          <TabsList>
-            <TabsTrigger value="player">Плеер</TabsTrigger>
-            <TabsTrigger value="schedule">Расписание</TabsTrigger>
-            {isOwner && <TabsTrigger value="media">Медиа файлы</TabsTrigger>}
-            {isOwner && <TabsTrigger value="analytics"><BarChart3 className="w-4 h-4 mr-2 inline" />Аналитика</TabsTrigger>}
+          <TabsList className="flex flex-wrap h-auto gap-1 p-1 mb-4">
+            <TabsTrigger value="player" className="text-xs md:text-sm">Плеер</TabsTrigger>
+            <TabsTrigger value="schedule" className="text-xs md:text-sm">Расписание</TabsTrigger>
+            {isOwner && <TabsTrigger value="media" className="text-xs md:text-sm">Медиа</TabsTrigger>}
+            {isOwner && (
+              <TabsTrigger value="analytics" className="text-xs md:text-sm">
+                <BarChart3 className="w-3 h-3 md:w-4 md:h-4 mr-1" />
+                <span className="hidden md:inline">Аналитика</span>
+              </TabsTrigger>
+            )}
+            {isOwner && (
+              <TabsTrigger value="bot" className="text-xs md:text-sm">
+                <Bot className="w-3 h-3 md:w-4 md:h-4 mr-1" />
+                <span className="hidden md:inline">Бот</span>
+              </TabsTrigger>
+            )}
+            {isOwner && (
+              <TabsTrigger value="rewards" className="text-xs md:text-sm">
+                <Gift className="w-3 h-3 md:w-4 md:h-4 mr-1" />
+                <span className="hidden md:inline">Награды</span>
+              </TabsTrigger>
+            )}
+            {isOwner && (
+              <TabsTrigger value="members" className="text-xs md:text-sm">
+                <Users className="w-3 h-3 md:w-4 md:h-4 mr-1" />
+                <span className="hidden md:inline">Участники</span>
+              </TabsTrigger>
+            )}
             {isOwner && channel.streaming_method === "live" && (
-              <TabsTrigger value="obs">OBS настройки</TabsTrigger>
+              <TabsTrigger value="obs" className="text-xs md:text-sm">OBS</TabsTrigger>
             )}
           </TabsList>
 
-          <TabsContent value="player" className="mt-6">
-            <div className="bg-card border-2 border-border rounded-lg p-8">
+          <TabsContent value="player" className="mt-4 md:mt-6">
+            <div className="bg-card border-2 border-border rounded-lg p-4 md:p-8">
               <div className="space-y-4">
                 {channel.streaming_method === "live" && muxPlaybackId ? (
                   <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
-                    {/* Channel Avatar Overlay */}
                     {channel.thumbnail_url && (
                       <div className="absolute top-4 right-4 z-20">
                         <img 
                           src={channel.thumbnail_url} 
                           alt={channel.title}
-                          className="w-14 h-14 rounded-full border-2 border-white/50 object-cover shadow-lg"
+                          className="w-10 h-10 md:w-14 md:h-14 rounded-full border-2 border-white/50 object-cover shadow-lg"
                         />
                       </div>
                     )}
-                    <div className="absolute top-4 left-4 bg-destructive text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-2 z-10">
+                    <div className="absolute top-4 left-4 bg-destructive text-white px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-semibold flex items-center gap-2 z-10">
                       <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
                       LIVE
                     </div>
@@ -705,22 +746,22 @@ const ChannelView = () => {
                   </div>
                 ) : mediaContent.length > 0 ? (
                   <div className="aspect-video bg-muted rounded-lg flex items-center justify-center overflow-hidden relative">
-                    {/* Channel Avatar Overlay */}
                     {channel.thumbnail_url && channel.channel_type === "tv" && (
                       <div className="absolute top-4 right-4 z-20">
                         <img 
                           src={channel.thumbnail_url} 
                           alt={channel.title}
-                          className="w-14 h-14 rounded-full border-2 border-white/50 object-cover shadow-lg"
+                          className="w-10 h-10 md:w-14 md:h-14 rounded-full border-2 border-white/50 object-cover shadow-lg"
                         />
                       </div>
                     )}
-                    <div className="absolute top-4 left-4 bg-destructive text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-2 z-10">
+                    <div className="absolute top-4 left-4 bg-destructive text-white px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-semibold flex items-center gap-2 z-10">
                       <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
                       ПРЯМОЙ ЭФИР
                     </div>
                     {channel.channel_type === "tv" ? (
                       <video
+                        ref={videoRef}
                         key={mediaContent[currentMediaIndex].id}
                         src={mediaContent[currentMediaIndex].file_url}
                         autoPlay
@@ -728,14 +769,14 @@ const ChannelView = () => {
                         playsInline
                         className="w-full h-full object-contain"
                         onContextMenu={(e) => e.preventDefault()}
-                        controlsList="nodownload nofullscreen noremoteplayback"
+                        controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
                         disablePictureInPicture
                         style={{ pointerEvents: 'none' }}
-                        onEnded={() => {
-                          if (currentMediaIndex < mediaContent.length - 1) {
-                            setCurrentMediaIndex(currentMediaIndex + 1);
-                          } else {
-                            setCurrentMediaIndex(0);
+                        onEnded={handleMediaEnded}
+                        onTimeUpdate={handleTimeUpdate}
+                        onLoadedMetadata={() => {
+                          if (playbackState && videoRef.current) {
+                            syncToServerTime(playbackState);
                           }
                         }}
                         onError={(e) => {
@@ -747,22 +788,23 @@ const ChannelView = () => {
                       />
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-background to-primary/10">
-                        <RadioIcon className="w-24 h-24 text-primary mb-6 animate-pulse" />
-                        <h2 className="text-2xl font-bold mb-2">{channel.title}</h2>
-                        <p className="text-muted-foreground mb-6">В эфире: {mediaContent[currentMediaIndex].title}</p>
+                        <RadioIcon className="w-16 h-16 md:w-24 md:h-24 text-primary mb-4 md:mb-6 animate-pulse" />
+                        <h2 className="text-xl md:text-2xl font-bold mb-2">{channel.title}</h2>
+                        <p className="text-sm md:text-base text-muted-foreground mb-4 md:mb-6">В эфире: {mediaContent[currentMediaIndex].title}</p>
                         <audio
+                          ref={audioRef}
                           key={mediaContent[currentMediaIndex].id}
                           src={mediaContent[currentMediaIndex].file_url}
                           autoPlay
                           className="w-full max-w-md"
                           onContextMenu={(e) => e.preventDefault()}
-                          controlsList="nodownload"
+                          controlsList="nodownload noplaybackrate"
                           style={{ pointerEvents: 'none' }}
-                          onEnded={() => {
-                            if (currentMediaIndex < mediaContent.length - 1) {
-                              setCurrentMediaIndex(currentMediaIndex + 1);
-                            } else {
-                              setCurrentMediaIndex(0);
+                          onEnded={handleMediaEnded}
+                          onTimeUpdate={handleTimeUpdate}
+                          onLoadedMetadata={() => {
+                            if (playbackState && audioRef.current) {
+                              syncToServerTime(playbackState);
                             }
                           }}
                           onError={(e) => {
@@ -777,8 +819,8 @@ const ChannelView = () => {
                   </div>
                 ) : (
                   <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-                    <div className="text-center text-muted-foreground">
-                      <p className="text-lg mb-2">Медиа контент пока не загружен</p>
+                    <div className="text-center text-muted-foreground p-4">
+                      <p className="text-base md:text-lg mb-2">Медиа контент пока не загружен</p>
                       {isOwner && (
                         <p className="text-sm">
                           Загрузите медиа файлы во вкладке "Медиа файлы"
@@ -791,15 +833,14 @@ const ChannelView = () => {
             </div>
           </TabsContent>
 
-          {/* Schedule Tab */}
-          <TabsContent value="schedule" className="mt-6">
-            <div className="bg-card border border-border rounded-lg p-6">
+          <TabsContent value="schedule" className="mt-4 md:mt-6">
+            <div className="bg-card border border-border rounded-lg p-4 md:p-6">
               <ChannelSchedule channelId={channel.id} isOwner={isOwner} />
             </div>
           </TabsContent>
 
           {isOwner && (
-            <TabsContent value="media" className="mt-6">
+            <TabsContent value="media" className="mt-4 md:mt-6">
               <MediaManager
                 channelId={channel.id}
                 channelType={channel.channel_type}
@@ -810,11 +851,41 @@ const ChannelView = () => {
             </TabsContent>
           )}
 
+          {isOwner && (
+            <TabsContent value="analytics" className="mt-4 md:mt-6">
+              <ChannelAnalytics channelId={channel.id} />
+            </TabsContent>
+          )}
+
+          {isOwner && (
+            <TabsContent value="bot" className="mt-4 md:mt-6">
+              <div className="bg-card border border-border rounded-lg p-4 md:p-6">
+                <ChatBot channelId={channel.id} isOwner={isOwner} />
+              </div>
+            </TabsContent>
+          )}
+
+          {isOwner && (
+            <TabsContent value="rewards" className="mt-4 md:mt-6">
+              <div className="bg-card border border-border rounded-lg p-4 md:p-6">
+                <PointsRewardsSystem channelId={channel.id} isOwner={isOwner} />
+              </div>
+            </TabsContent>
+          )}
+
+          {isOwner && (
+            <TabsContent value="members" className="mt-4 md:mt-6">
+              <div className="bg-card border border-border rounded-lg p-4 md:p-6">
+                <ChannelMemberManager channelId={channel.id} channelOwnerId={channel.user_id} isOwner={isOwner} />
+              </div>
+            </TabsContent>
+          )}
+
           {isOwner && channel.streaming_method === "live" && (
-            <TabsContent value="obs" className="mt-6">
-              <div className="bg-card border-2 border-border rounded-lg p-6 space-y-6">
+            <TabsContent value="obs" className="mt-4 md:mt-6">
+              <div className="bg-card border-2 border-border rounded-lg p-4 md:p-6 space-y-6">
                 <div>
-                  <h3 className="text-xl font-bold mb-2">Настройки для OBS Studio</h3>
+                  <h3 className="text-lg md:text-xl font-bold mb-2">Настройки для OBS Studio</h3>
                   <p className="text-sm text-muted-foreground">
                     Используйте эти данные для настройки live стриминга через OBS
                   </p>
@@ -838,7 +909,7 @@ const ChannelView = () => {
                     <div className="bg-muted/50 p-4 rounded-lg space-y-4">
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <Label className="text-base font-semibold">RTMP Server URL:</Label>
+                          <Label className="text-sm md:text-base font-semibold">RTMP Server URL:</Label>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -856,7 +927,7 @@ const ChannelView = () => {
 
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <Label className="text-base font-semibold">Stream Key:</Label>
+                          <Label className="text-sm md:text-base font-semibold">Stream Key:</Label>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -891,8 +962,7 @@ const ChannelView = () => {
 
                     <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
                       <p className="text-sm">
-                        <strong>Статус:</strong> Stream готов к использованию. 
-                        Начните трансляцию в OBS, и ваш контент будет доступен зрителям через несколько секунд.
+                        <strong>Статус:</strong> Stream готов к использованию.
                       </p>
                     </div>
                   </div>
@@ -902,21 +972,22 @@ const ChannelView = () => {
           )}
         </Tabs>
 
-        {isOwner && (
-          <div className="mt-8">
-            <h2 className="text-2xl font-bold mb-4">Аналитика канала</h2>
-            <ChannelAnalytics channelId={channel.id} />
+        {/* Points & Rewards for viewers */}
+        {!isOwner && user && (
+          <div className="mt-6 md:mt-8">
+            <div className="bg-card border border-border rounded-lg p-4 md:p-6">
+              <PointsRewardsSystem channelId={channel.id} isOwner={false} />
+            </div>
           </div>
         )}
 
-        {/* Comments and Live Chat Section - side by side on desktop */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6 mt-8">
+        {/* Comments and Live Chat Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-4 md:gap-6 mt-6 md:mt-8">
           <div>
             <CommentsSection channelId={channel.id} />
           </div>
           
-          {/* Live Chat */}
-          <div className="bg-card border border-border rounded-lg overflow-hidden h-[600px] lg:sticky lg:top-4">
+          <div className="bg-card border border-border rounded-lg overflow-hidden h-[400px] md:h-[600px] lg:sticky lg:top-4">
             <EnhancedLiveChat channelId={channel.id} channelOwnerId={channel.user_id} />
           </div>
         </div>
