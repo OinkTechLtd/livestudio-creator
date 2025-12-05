@@ -1,7 +1,16 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const DevToolsBlocker = () => {
+  const [isBlocked, setIsBlocked] = useState(false);
+
   useEffect(() => {
+    // Skip in iframe (for embed player)
+    const isInIframe = window !== window.parent;
+    if (isInIframe) return;
+
+    // Skip in development
+    if (import.meta.env.DEV) return;
+
     // Disable right-click context menu
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
@@ -59,14 +68,19 @@ const DevToolsBlocker = () => {
       }
     };
 
-    // Detect DevTools opening via size change
+    // Detect DevTools opening via size change (more reliable check)
     const detectDevTools = () => {
       const threshold = 160;
       const widthThreshold = window.outerWidth - window.innerWidth > threshold;
       const heightThreshold = window.outerHeight - window.innerHeight > threshold;
       
-      if (widthThreshold || heightThreshold) {
-        document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;background:#0a0a0a;color:#ff0066;font-family:Orbitron,sans-serif;font-size:24px;text-align:center;padding:20px;">DevTools обнаружены. Пожалуйста, закройте их.</div>';
+      // Also check if window is docked
+      const isMinimized = window.outerWidth < 200 || window.outerHeight < 200;
+      
+      if ((widthThreshold || heightThreshold) && !isMinimized) {
+        setIsBlocked(true);
+      } else {
+        setIsBlocked(false);
       }
     };
 
@@ -80,36 +94,32 @@ const DevToolsBlocker = () => {
       console.debug = noop;
     }
 
-    // Add debugger trap
-    const debuggerTrap = () => {
-      const start = performance.now();
-      debugger;
-      const end = performance.now();
-      if (end - start > 100) {
-        document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;background:#0a0a0a;color:#ff0066;font-family:Orbitron,sans-serif;font-size:24px;text-align:center;padding:20px;">Debugger обнаружен. Пожалуйста, закройте DevTools.</div>';
-      }
-    };
-
     document.addEventListener("contextmenu", handleContextMenu);
     document.addEventListener("keydown", handleKeyDown);
     
     const intervalId = setInterval(detectDevTools, 1000);
-    
-    // Run debugger trap periodically in production
-    let debugInterval: NodeJS.Timeout | null = null;
-    if (import.meta.env.PROD) {
-      debugInterval = setInterval(debuggerTrap, 5000);
-    }
 
     return () => {
       document.removeEventListener("contextmenu", handleContextMenu);
       document.removeEventListener("keydown", handleKeyDown);
       clearInterval(intervalId);
-      if (debugInterval) {
-        clearInterval(debugInterval);
-      }
     };
   }, []);
+
+  if (isBlocked) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
+        <div className="text-center p-8">
+          <h1 className="text-2xl font-bold text-destructive mb-4">
+            DevTools обнаружены
+          </h1>
+          <p className="text-muted-foreground">
+            Пожалуйста, закройте инструменты разработчика для продолжения.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return null;
 };
