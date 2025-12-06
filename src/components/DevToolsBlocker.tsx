@@ -8,8 +8,12 @@ const DevToolsBlocker = () => {
     const isInIframe = window !== window.parent;
     if (isInIframe) return;
 
-    // Skip in development
+    // Skip in development and preview
     if (import.meta.env.DEV) return;
+    
+    // Skip on Lovable preview domains
+    if (window.location.hostname.includes('lovable.app') || 
+        window.location.hostname.includes('localhost')) return;
 
     // Disable right-click context menu
     const handleContextMenu = (e: MouseEvent) => {

@@ -8,9 +8,6 @@ interface MediaContent {
   duration: number | null;
   is_24_7: boolean;
   scheduled_at: string | null;
-  start_time?: string | null;
-  end_time?: string | null;
-}
   start_time: string | null;
   end_time: string | null;
 }

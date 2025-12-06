@@ -78,6 +78,8 @@ interface MediaContent {
   duration: number | null;
   is_24_7: boolean;
   scheduled_at: string | null;
+  start_time: string | null;
+  end_time: string | null;
 }
 
 interface PlaybackState {
@@ -99,12 +101,30 @@ const ChannelView = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
   const [editedDescription, setEditedDescription] = useState("");
+  const [editedDonationUrl, setEditedDonationUrl] = useState("");
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string>("");
   const [muxStreamKey, setMuxStreamKey] = useState<string>("");
+  const [muxPlaybackId, setMuxPlaybackId] = useState<string>("");
+  const [playbackState, setPlaybackState] = useState<PlaybackState | null>(null);
+  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+  const [storageUsage, setStorageUsage] = useState(0);
+  const [isCheckingStorage, setIsCheckingStorage] = useState(false);
+  const [isCreatingStream, setIsCreatingStream] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Use scheduled playback hook for MSK timezone scheduling
+  const scheduledPlayback = useScheduledPlayback(mediaContent);
+  
+  // Sync scheduled media index with local state
+  useEffect(() => {
+    if (scheduledPlayback.currentMediaIndex !== currentMediaIndex && mediaContent.length > 0) {
+      setCurrentMediaIndex(scheduledPlayback.currentMediaIndex);
+    }
+  }, [scheduledPlayback.currentMediaIndex, mediaContent.length]);
 
   useEffect(() => {
     fetchChannel();
@@ -461,8 +481,9 @@ const ChannelView = () => {
   };
 
   const handleMediaEnded = async () => {
-    const nextIndex = (currentMediaIndex + 1) % mediaContent.length;
-    setCurrentMediaIndex(nextIndex);
+    // Use scheduled playback handler for proper MSK timezone scheduling
+    scheduledPlayback.handleMediaEnded();
+    const nextIndex = scheduledPlayback.currentMediaIndex;
     
     if (isOwner && mediaContent[nextIndex]) {
       await updatePlaybackState(mediaContent[nextIndex].id, 0);
@@ -732,7 +753,14 @@ const ChannelView = () => {
           <TabsContent value="player" className="mt-4 md:mt-6">
             <div className="bg-card border-2 border-border rounded-lg p-4 md:p-8">
               <div className="space-y-4">
-                {channel.streaming_method === "live" && muxPlaybackId ? (
+                {/* Show WebRTC stream for viewers when channel is live */}
+                {channel.is_live && !isOwner ? (
+                  channel.channel_type === "tv" ? (
+                    <ScreenShareStreaming channelId={channel.id} isOwner={false} />
+                  ) : (
+                    <VoiceStreaming channelId={channel.id} isOwner={false} />
+                  )
+                ) : channel.streaming_method === "live" && muxPlaybackId ? (
                   <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
                     {channel.thumbnail_url && (
                       <div className="absolute top-4 right-4 z-20">
@@ -770,71 +798,128 @@ const ChannelView = () => {
                       ПРЯМОЙ ЭФИР
                     </div>
                     {channel.channel_type === "tv" ? (
-                      <video
-                        ref={videoRef}
-                        key={mediaContent[currentMediaIndex].id}
-                        src={mediaContent[currentMediaIndex].file_url}
-                        autoPlay
-                        loop={false}
-                        playsInline
-                        className="w-full h-full object-contain"
-                        onContextMenu={(e) => e.preventDefault()}
-                        controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
-                        disablePictureInPicture
-                        style={{ pointerEvents: 'none' }}
-                        onEnded={handleMediaEnded}
-                        onTimeUpdate={handleTimeUpdate}
-                        onLoadedMetadata={() => {
-                          if (playbackState && videoRef.current) {
-                            syncToServerTime(playbackState);
-                          }
-                        }}
-                        onError={(e) => {
-                          console.error("Video error:", e);
-                          if (currentMediaIndex < mediaContent.length - 1) {
-                            setCurrentMediaIndex(currentMediaIndex + 1);
-                          }
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-background to-primary/10">
-                        <RadioIcon className="w-16 h-16 md:w-24 md:h-24 text-primary mb-4 md:mb-6 animate-pulse" />
-                        <h2 className="text-xl md:text-2xl font-bold mb-2">{channel.title}</h2>
-                        <p className="text-sm md:text-base text-muted-foreground mb-4 md:mb-6">В эфире: {mediaContent[currentMediaIndex].title}</p>
-                        <audio
-                          ref={audioRef}
-                          key={mediaContent[currentMediaIndex].id}
+                      mediaContent[currentMediaIndex]?.file_url?.includes('.m3u8') ? (
+                        <HLSPlayer
                           src={mediaContent[currentMediaIndex].file_url}
-                          autoPlay
-                          className="w-full max-w-md"
-                          onContextMenu={(e) => e.preventDefault()}
-                          controlsList="nodownload noplaybackrate"
-                          style={{ pointerEvents: 'none' }}
+                          autoPlay={true}
+                          className="w-full h-full object-contain"
                           onEnded={handleMediaEnded}
-                          onTimeUpdate={handleTimeUpdate}
-                          onLoadedMetadata={() => {
-                            if (playbackState && audioRef.current) {
-                              syncToServerTime(playbackState);
-                            }
-                          }}
                           onError={(e) => {
-                            console.error("Audio error:", e);
+                            console.error("HLS error:", e);
                             if (currentMediaIndex < mediaContent.length - 1) {
                               setCurrentMediaIndex(currentMediaIndex + 1);
                             }
                           }}
                         />
+                      ) : (
+                        <video
+                          ref={videoRef}
+                          key={mediaContent[currentMediaIndex]?.id || 'video'}
+                          src={mediaContent[currentMediaIndex]?.file_url}
+                          autoPlay
+                          loop={false}
+                          playsInline
+                          className="w-full h-full object-contain"
+                          onContextMenu={(e) => e.preventDefault()}
+                          controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
+                          disablePictureInPicture
+                          style={{ pointerEvents: 'none' }}
+                          onEnded={handleMediaEnded}
+                          onTimeUpdate={handleTimeUpdate}
+                          onLoadedMetadata={() => {
+                            if (playbackState && videoRef.current) {
+                              syncToServerTime(playbackState);
+                            }
+                          }}
+                          onError={(e) => {
+                            console.error("Video error:", e);
+                            if (currentMediaIndex < mediaContent.length - 1) {
+                              setCurrentMediaIndex(currentMediaIndex + 1);
+                            }
+                          }}
+                        />
+                      )
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-background to-primary/10">
+                        <RadioIcon className="w-16 h-16 md:w-24 md:h-24 text-primary mb-4 md:mb-6 animate-pulse" />
+                        <h2 className="text-xl md:text-2xl font-bold mb-2">{channel.title}</h2>
+                        <p className="text-sm md:text-base text-muted-foreground mb-4 md:mb-6">В эфире: {mediaContent[currentMediaIndex]?.title}</p>
+                        {mediaContent[currentMediaIndex]?.file_url?.includes('.m3u8') ? (
+                          <HLSPlayer
+                            src={mediaContent[currentMediaIndex].file_url}
+                            autoPlay={true}
+                            className="w-full max-w-md"
+                            onEnded={handleMediaEnded}
+                            onError={(e) => {
+                              console.error("HLS audio error:", e);
+                              if (currentMediaIndex < mediaContent.length - 1) {
+                                setCurrentMediaIndex(currentMediaIndex + 1);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <audio
+                            ref={audioRef}
+                            key={mediaContent[currentMediaIndex]?.id || 'audio'}
+                            src={mediaContent[currentMediaIndex]?.file_url}
+                            autoPlay
+                            className="w-full max-w-md"
+                            onContextMenu={(e) => e.preventDefault()}
+                            controlsList="nodownload noplaybackrate"
+                            style={{ pointerEvents: 'none' }}
+                            onEnded={handleMediaEnded}
+                            onTimeUpdate={handleTimeUpdate}
+                            onLoadedMetadata={() => {
+                              if (playbackState && audioRef.current) {
+                                syncToServerTime(playbackState);
+                              }
+                            }}
+                            onError={(e) => {
+                              console.error("Audio error:", e);
+                              if (currentMediaIndex < mediaContent.length - 1) {
+                                setCurrentMediaIndex(currentMediaIndex + 1);
+                              }
+                            }}
+                          />
+                        )}
                       </div>
                     )}
                   </div>
                 ) : (
                   <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
                     <div className="text-center text-muted-foreground p-4">
-                      <p className="text-base md:text-lg mb-2">Медиа контент пока не загружен</p>
-                      {isOwner && (
-                        <p className="text-sm">
-                          Загрузите медиа файлы во вкладке "Медиа файлы"
-                        </p>
+                      {isOwner ? (
+                        <>
+                          <p className="text-base md:text-lg mb-4">Начните трансляцию или загрузите медиа</p>
+                          <div className="flex flex-col md:flex-row gap-3 justify-center">
+                            {channel.channel_type === "tv" && (
+                              <Button variant="outline" onClick={() => {
+                                const tabsList = document.querySelector('[value="webrtc"]');
+                                if (tabsList) (tabsList as HTMLElement).click();
+                              }}>
+                                <Monitor className="w-4 h-4 mr-2" />
+                                Стримить экран/камеру
+                              </Button>
+                            )}
+                            {channel.channel_type === "radio" && (
+                              <Button variant="outline" onClick={() => {
+                                const tabsList = document.querySelector('[value="voice"]');
+                                if (tabsList) (tabsList as HTMLElement).click();
+                              }}>
+                                <Mic className="w-4 h-4 mr-2" />
+                                Выйти в эфир
+                              </Button>
+                            )}
+                          </div>
+                          <p className="text-sm mt-4">
+                            Или загрузите медиа файлы во вкладке "Медиа"
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-base md:text-lg mb-2">Канал пока не вещает</p>
+                          <p className="text-sm">Подождите начала трансляции</p>
+                        </>
                       )}
                     </div>
                   </div>
