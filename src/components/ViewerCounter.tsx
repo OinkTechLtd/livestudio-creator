@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Users } from "lucide-react";
@@ -9,66 +9,88 @@ interface ViewerCounterProps {
 
 const ViewerCounter = ({ channelId }: ViewerCounterProps) => {
   const { user } = useAuth();
-  const [viewerCount, setViewerCount] = useState(0);
-  const [sessionId] = useState(() => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  const [viewerCount, setViewerCount] = useState(1); // Start with 1 (self)
+  const [sessionId] = useState(() => `session-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`);
+  const [isRegistered, setIsRegistered] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
+  // Register viewer
+  const registerViewer = useCallback(async () => {
+    if (isRegistered) return;
+    
+    try {
+      // First, try to delete any stale sessions
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      await supabase
+        .from("channel_viewers")
+        .delete()
+        .eq("channel_id", channelId)
+        .lt("last_seen", fiveMinutesAgo);
 
-    // Register viewer
-    const registerViewer = async () => {
-      try {
-        await supabase.from("channel_viewers").upsert(
-          {
-            channel_id: channelId,
-            user_id: user?.id || null,
-            session_id: sessionId,
-            last_seen: new Date().toISOString(),
-          },
-          { onConflict: "session_id" }
-        );
-      } catch (error) {
+      // Insert new viewer record
+      const { error } = await supabase.from("channel_viewers").insert({
+        channel_id: channelId,
+        user_id: user?.id || null,
+        session_id: sessionId,
+        last_seen: new Date().toISOString(),
+      });
+
+      if (!error) {
+        setIsRegistered(true);
+        console.log("Viewer registered:", sessionId);
+      } else {
         console.error("Error registering viewer:", error);
       }
-    };
+    } catch (error) {
+      console.error("Error registering viewer:", error);
+    }
+  }, [channelId, user?.id, sessionId, isRegistered]);
 
-    // Fetch viewer count
-    const fetchViewerCount = async () => {
-      try {
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-        const { count, error } = await supabase
-          .from("channel_viewers")
-          .select("*", { count: "exact", head: true })
-          .eq("channel_id", channelId)
-          .gte("last_seen", fiveMinutesAgo);
-        
-        if (!error && mounted) {
-          setViewerCount(count || 0);
-        }
-      } catch (error) {
-        console.error("Error fetching viewer count:", error);
+  // Fetch viewer count
+  const fetchViewerCount = useCallback(async () => {
+    try {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { count, error } = await supabase
+        .from("channel_viewers")
+        .select("*", { count: "exact", head: true })
+        .eq("channel_id", channelId)
+        .gte("last_seen", fiveMinutesAgo);
+      
+      if (!error) {
+        // Ensure at least 1 (self) is shown
+        setViewerCount(Math.max(1, count || 0));
       }
-    };
+    } catch (error) {
+      console.error("Error fetching viewer count:", error);
+    }
+  }, [channelId]);
 
+  useEffect(() => {
+    // Register immediately
     registerViewer();
-    fetchViewerCount();
+    
+    // Small delay to ensure registration completes before count
+    const countTimeout = setTimeout(() => {
+      fetchViewerCount();
+    }, 500);
 
-    // Update heartbeat every 30 seconds
+    // Update heartbeat every 20 seconds
     const heartbeat = setInterval(async () => {
       try {
-        await supabase
-          .from("channel_viewers")
-          .update({ last_seen: new Date().toISOString() })
-          .eq("session_id", sessionId);
+        if (isRegistered) {
+          await supabase
+            .from("channel_viewers")
+            .update({ last_seen: new Date().toISOString() })
+            .eq("session_id", sessionId);
+        }
         fetchViewerCount();
       } catch (error) {
         console.error("Heartbeat error:", error);
       }
-    }, 30000);
+    }, 20000);
 
     // Subscribe to realtime updates
     const channel = supabase
-      .channel(`viewers:${channelId}`)
+      .channel(`viewers-${channelId}-${sessionId}`)
       .on(
         "postgres_changes",
         {
@@ -85,17 +107,18 @@ const ViewerCounter = ({ channelId }: ViewerCounterProps) => {
 
     // Cleanup on unmount
     return () => {
-      mounted = false;
+      clearTimeout(countTimeout);
       clearInterval(heartbeat);
       supabase.removeChannel(channel);
-      // Remove viewer record
+      
+      // Remove viewer record on unmount
       supabase
         .from("channel_viewers")
         .delete()
         .eq("session_id", sessionId)
-        .then(() => {});
+        .then(() => console.log("Viewer removed:", sessionId));
     };
-  }, [channelId, user?.id, sessionId]);
+  }, [channelId, sessionId, registerViewer, fetchViewerCount, isRegistered]);
 
   return (
     <div className="flex items-center gap-1.5 text-sm">
