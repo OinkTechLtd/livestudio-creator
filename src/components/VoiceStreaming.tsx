@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Mic, MicOff, Radio } from "lucide-react";
+import { Mic, MicOff, Radio, Headphones } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Select,
@@ -13,18 +13,21 @@ import {
 
 interface VoiceStreamingProps {
   channelId: string;
+  isOwner?: boolean;
   onStreamStart?: () => void;
   onStreamStop?: () => void;
 }
 
-const VoiceStreaming = ({ channelId, onStreamStart, onStreamStop }: VoiceStreamingProps) => {
+const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop }: VoiceStreamingProps) => {
   const { toast } = useToast();
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isLive, setIsLive] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>("");
   const streamRef = useRef<MediaStream | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const animationRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -37,12 +40,50 @@ const VoiceStreaming = ({ channelId, onStreamStart, onStreamStop }: VoiceStreami
       }
     });
 
+    // Check if channel is live
+    const checkLiveStatus = async () => {
+      const { data } = await supabase
+        .from("channels")
+        .select("is_live")
+        .eq("id", channelId)
+        .single();
+      
+      if (data) {
+        setIsLive(data.is_live);
+      }
+    };
+
+    checkLiveStatus();
+
+    // Subscribe to live status changes
+    const channel = supabase
+      .channel(`voice-stream-${channelId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "channels",
+          filter: `id=eq.${channelId}`,
+        },
+        (payload: any) => {
+          if (payload.new) {
+            setIsLive(payload.new.is_live);
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
+      supabase.removeChannel(channel);
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
     };
-  }, []);
+  }, [channelId]);
 
   const startStreaming = async () => {
     try {
@@ -59,6 +100,7 @@ const VoiceStreaming = ({ channelId, onStreamStart, onStreamStop }: VoiceStreami
 
       // Create audio context for visualization
       const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
@@ -90,7 +132,7 @@ const VoiceStreaming = ({ channelId, onStreamStart, onStreamStop }: VoiceStreami
 
       toast({
         title: "Голосовой эфир запущен",
-        description: "Микрофон активен",
+        description: "Микрофон активен, зрители слышат вас",
       });
 
     } catch (error: any) {
@@ -107,6 +149,11 @@ const VoiceStreaming = ({ channelId, onStreamStart, onStreamStop }: VoiceStreami
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
     }
 
     if (streamRef.current) {
@@ -130,6 +177,48 @@ const VoiceStreaming = ({ channelId, onStreamStart, onStreamStop }: VoiceStreami
       title: "Эфир остановлен",
     });
   };
+
+  // Viewer mode - show listening UI
+  if (!isOwner) {
+    return (
+      <div className="bg-muted rounded-lg p-6 md:p-8">
+        <div className="flex flex-col items-center gap-4">
+          <div className={`relative w-24 h-24 md:w-32 md:h-32 rounded-full flex items-center justify-center transition-all ${
+            isLive ? 'bg-primary/20' : 'bg-muted-foreground/10'
+          }`}>
+            {isLive && (
+              <>
+                <div 
+                  className="absolute inset-0 rounded-full bg-primary/30 animate-ping"
+                  style={{ animationDuration: '1.5s' }}
+                />
+              </>
+            )}
+            {isLive ? (
+              <Headphones className="w-12 h-12 md:w-16 md:h-16 text-primary" />
+            ) : (
+              <Radio className="w-12 h-12 md:w-16 md:h-16 text-muted-foreground" />
+            )}
+          </div>
+
+          {isLive ? (
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-destructive rounded-full animate-pulse" />
+              <span className="text-sm font-medium">В ПРЯМОМ ЭФИРЕ</span>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Ожидание начала эфира...</p>
+          )}
+
+          <p className="text-sm text-muted-foreground text-center">
+            {isLive 
+              ? "Радио транслируется в прямом эфире" 
+              : "Ведущий пока не начал эфир"}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -219,6 +308,10 @@ const VoiceStreaming = ({ channelId, onStreamStart, onStreamStop }: VoiceStreami
           </p>
         </div>
       </div>
+
+      <p className="text-sm text-muted-foreground">
+        💡 Зрители услышат ваш голос в реальном времени после запуска эфира
+      </p>
     </div>
   );
 };

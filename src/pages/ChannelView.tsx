@@ -26,10 +26,12 @@ import {
   Gift,
   Settings,
   Monitor,
-  Mic
+  Mic,
+  Heart
 } from "lucide-react";
 import ScreenShareStreaming from "@/components/ScreenShareStreaming";
 import VoiceStreaming from "@/components/VoiceStreaming";
+import HLSPlayer from "@/components/HLSPlayer";
 import Header from "@/components/Header";
 import {
   Dialog,
@@ -52,7 +54,7 @@ import DonationButton from "@/components/DonationButton";
 import ChatBot from "@/components/ChatBot";
 import PointsRewardsSystem from "@/components/PointsRewardsSystem";
 import ChannelMemberManager from "@/components/ChannelMemberManager";
-import { Heart } from "lucide-react";
+import { useScheduledPlayback } from "@/hooks/useScheduledPlayback";
 
 interface Channel {
   id: string;
@@ -99,15 +101,7 @@ const ChannelView = () => {
   const [editedDescription, setEditedDescription] = useState("");
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string>("");
-  const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [muxStreamKey, setMuxStreamKey] = useState<string>("");
-  const [muxPlaybackId, setMuxPlaybackId] = useState<string>("");
-  const [isCreatingStream, setIsCreatingStream] = useState(false);
-  const [storageUsage, setStorageUsage] = useState<number>(0);
-  const [isCheckingStorage, setIsCheckingStorage] = useState(false);
-  const [showReportDialog, setShowReportDialog] = useState(false);
-  const [editedDonationUrl, setEditedDonationUrl] = useState("");
-  const [playbackState, setPlaybackState] = useState<PlaybackState | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Monitor, Camera, StopCircle, Video } from "lucide-react";
+import { Monitor, Camera, StopCircle, Video, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Select,
@@ -13,18 +13,19 @@ import {
 
 interface ScreenShareStreamingProps {
   channelId: string;
+  isOwner?: boolean;
   onStreamStart?: () => void;
   onStreamStop?: () => void;
 }
 
-const ScreenShareStreaming = ({ channelId, onStreamStart, onStreamStop }: ScreenShareStreamingProps) => {
+const ScreenShareStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop }: ScreenShareStreamingProps) => {
   const { toast } = useToast();
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isLive, setIsLive] = useState(false);
   const [streamType, setStreamType] = useState<"screen" | "camera">("screen");
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>("");
   const videoRef = useRef<HTMLVideoElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
@@ -36,7 +37,45 @@ const ScreenShareStreaming = ({ channelId, onStreamStart, onStreamStop }: Screen
         setSelectedDevice(videoDevices[0].deviceId);
       }
     });
-  }, []);
+
+    // Check if channel is live
+    const checkLiveStatus = async () => {
+      const { data } = await supabase
+        .from("channels")
+        .select("is_live")
+        .eq("id", channelId)
+        .single();
+      
+      if (data) {
+        setIsLive(data.is_live);
+      }
+    };
+
+    checkLiveStatus();
+
+    // Subscribe to live status changes
+    const channel = supabase
+      .channel(`screen-stream-${channelId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "channels",
+          filter: `id=eq.${channelId}`,
+        },
+        (payload: any) => {
+          if (payload.new) {
+            setIsLive(payload.new.is_live);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [channelId]);
 
   const startStreaming = async () => {
     try {
@@ -122,6 +161,36 @@ const ScreenShareStreaming = ({ channelId, onStreamStart, onStreamStop }: Screen
     });
   };
 
+  // Viewer mode - show the stream
+  if (!isOwner) {
+    return (
+      <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
+        {isLive ? (
+          <>
+            <div className="absolute top-4 left-4 bg-destructive text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-2 z-10">
+              <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              LIVE
+            </div>
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="text-center">
+                <Monitor className="w-16 h-16 text-primary mx-auto mb-4 animate-pulse" />
+                <p className="text-lg font-medium">Трансляция в прямом эфире</p>
+                <p className="text-sm text-muted-foreground">WebRTC стрим активен</p>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <div className="text-center">
+              <Eye className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">Ожидание начала трансляции...</p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row gap-3">
@@ -204,6 +273,10 @@ const ScreenShareStreaming = ({ channelId, onStreamStart, onStreamStop }: Screen
           </div>
         )}
       </div>
+
+      <p className="text-sm text-muted-foreground">
+        💡 Зрители увидят вашу трансляцию в реальном времени после запуска
+      </p>
     </div>
   );
 };
