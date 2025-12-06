@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Mic, MicOff, Radio, Headphones } from "lucide-react";
+import { Mic, MicOff, Radio, Headphones, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Select,
@@ -22,6 +22,7 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
   const { toast } = useToast();
   const [isStreaming, setIsStreaming] = useState(false);
   const [isLive, setIsLive] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<string>("");
@@ -29,6 +30,9 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const animationRef = useRef<number | null>(null);
+  const viewerAudioRef = useRef<HTMLAudioElement>(null);
+  const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const realtimeChannelRef = useRef<any>(null);
 
   useEffect(() => {
     // Get available audio devices
@@ -49,7 +53,7 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
         .single();
       
       if (data) {
-        setIsLive(data.is_live);
+        setIsLive(data.is_live || false);
       }
     };
 
@@ -68,7 +72,7 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
         },
         (payload: any) => {
           if (payload.new) {
-            setIsLive(payload.new.is_live);
+            setIsLive(payload.new.is_live || false);
           }
         }
       )
@@ -76,17 +80,121 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
 
     return () => {
       supabase.removeChannel(channel);
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
+      cleanup();
     };
   }, [channelId]);
 
+  // Setup WebRTC signaling for viewers
+  useEffect(() => {
+    if (!isOwner && isLive) {
+      setupViewerConnection();
+    }
+  }, [isOwner, isLive]);
+
+  const cleanup = () => {
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    peerConnectionsRef.current.forEach(pc => pc.close());
+    peerConnectionsRef.current.clear();
+    if (realtimeChannelRef.current) {
+      supabase.removeChannel(realtimeChannelRef.current);
+    }
+  };
+
+  const setupViewerConnection = async () => {
+    setIsLoading(true);
+    
+    const viewerId = `viewer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    const signaling = supabase.channel(`webrtc-voice-${channelId}`, {
+      config: { broadcast: { self: false } }
+    });
+    
+    realtimeChannelRef.current = signaling;
+
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+      ]
+    });
+
+    peerConnectionsRef.current.set(viewerId, pc);
+
+    pc.ontrack = (event) => {
+      console.log('Received audio track');
+      if (viewerAudioRef.current && event.streams[0]) {
+        viewerAudioRef.current.srcObject = event.streams[0];
+        viewerAudioRef.current.play().catch(console.error);
+        setIsLoading(false);
+      }
+    };
+
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        signaling.send({
+          type: 'broadcast',
+          event: 'ice-candidate',
+          payload: {
+            candidate: event.candidate,
+            viewerId,
+            target: 'broadcaster'
+          }
+        });
+      }
+    };
+
+    signaling.on('broadcast', { event: 'offer' }, async (payload: any) => {
+      if (payload.payload.targetViewerId === viewerId) {
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(payload.payload.offer));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          
+          signaling.send({
+            type: 'broadcast',
+            event: 'answer',
+            payload: {
+              answer,
+              viewerId
+            }
+          });
+        } catch (error) {
+          console.error('Error handling offer:', error);
+        }
+      }
+    });
+
+    signaling.on('broadcast', { event: 'ice-candidate' }, async (payload: any) => {
+      if (payload.payload.target === 'viewer' && payload.payload.targetViewerId === viewerId) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(payload.payload.candidate));
+        } catch (error) {
+          console.error('Error adding ICE candidate:', error);
+        }
+      }
+    });
+
+    await signaling.subscribe();
+
+    // Request offer from broadcaster
+    signaling.send({
+      type: 'broadcast',
+      event: 'viewer-joined',
+      payload: { viewerId }
+    });
+  };
+
   const startStreaming = async () => {
     try {
+      setIsLoading(true);
+      
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: selectedDevice ? { exact: selectedDevice } : undefined,
@@ -121,6 +229,77 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
       };
       visualize();
 
+      // Setup signaling for broadcaster
+      const signaling = supabase.channel(`webrtc-voice-${channelId}`, {
+        config: { broadcast: { self: false } }
+      });
+      
+      realtimeChannelRef.current = signaling;
+
+      signaling.on('broadcast', { event: 'viewer-joined' }, async (payload: any) => {
+        const viewerId = payload.payload.viewerId;
+        console.log('Voice viewer joined:', viewerId);
+        
+        const pc = new RTCPeerConnection({
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+          ]
+        });
+
+        peerConnectionsRef.current.set(viewerId, pc);
+
+        // Add audio track to peer connection
+        stream.getAudioTracks().forEach(track => {
+          pc.addTrack(track, stream);
+        });
+
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            signaling.send({
+              type: 'broadcast',
+              event: 'ice-candidate',
+              payload: {
+                candidate: event.candidate,
+                target: 'viewer',
+                targetViewerId: viewerId
+              }
+            });
+          }
+        };
+
+        // Create and send offer
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        signaling.send({
+          type: 'broadcast',
+          event: 'offer',
+          payload: {
+            offer,
+            targetViewerId: viewerId
+          }
+        });
+      });
+
+      signaling.on('broadcast', { event: 'answer' }, async (payload: any) => {
+        const pc = peerConnectionsRef.current.get(payload.payload.viewerId);
+        if (pc) {
+          await pc.setRemoteDescription(new RTCSessionDescription(payload.payload.answer));
+        }
+      });
+
+      signaling.on('broadcast', { event: 'ice-candidate' }, async (payload: any) => {
+        if (payload.payload.target === 'broadcaster') {
+          const pc = peerConnectionsRef.current.get(payload.payload.viewerId);
+          if (pc) {
+            await pc.addIceCandidate(new RTCIceCandidate(payload.payload.candidate));
+          }
+        }
+      });
+
+      await signaling.subscribe();
+
       // Update channel to live status
       await supabase
         .from("channels")
@@ -128,6 +307,7 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
         .eq("id", channelId);
 
       setIsStreaming(true);
+      setIsLoading(false);
       onStreamStart?.();
 
       toast({
@@ -137,6 +317,7 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
 
     } catch (error: any) {
       console.error("Voice streaming error:", error);
+      setIsLoading(false);
       toast({
         title: "Ошибка",
         description: error.message || "Не удалось запустить эфир",
@@ -146,15 +327,7 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
   };
 
   const stopStreaming = async () => {
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
-
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
+    cleanup();
 
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
@@ -182,6 +355,7 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
   if (!isOwner) {
     return (
       <div className="bg-muted rounded-lg p-6 md:p-8">
+        <audio ref={viewerAudioRef} autoPlay playsInline className="hidden" />
         <div className="flex flex-col items-center gap-4">
           <div className={`relative w-24 h-24 md:w-32 md:h-32 rounded-full flex items-center justify-center transition-all ${
             isLive ? 'bg-primary/20' : 'bg-muted-foreground/10'
@@ -194,7 +368,9 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
                 />
               </>
             )}
-            {isLive ? (
+            {isLoading ? (
+              <Loader2 className="w-12 h-12 md:w-16 md:h-16 text-primary animate-spin" />
+            ) : isLive ? (
               <Headphones className="w-12 h-12 md:w-16 md:h-16 text-primary" />
             ) : (
               <Radio className="w-12 h-12 md:w-16 md:h-16 text-muted-foreground" />
@@ -211,9 +387,11 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
           )}
 
           <p className="text-sm text-muted-foreground text-center">
-            {isLive 
-              ? "Радио транслируется в прямом эфире" 
-              : "Ведущий пока не начал эфир"}
+            {isLoading 
+              ? "Подключение к эфиру..."
+              : isLive 
+                ? "Радио транслируется в прямом эфире" 
+                : "Ведущий пока не начал эфир"}
           </p>
         </div>
       </div>
@@ -241,8 +419,8 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
         </Select>
 
         {!isStreaming ? (
-          <Button onClick={startStreaming} className="gap-2">
-            <Mic className="w-4 h-4" />
+          <Button onClick={startStreaming} className="gap-2" disabled={isLoading}>
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4" />}
             Выйти в эфир
           </Button>
         ) : (

@@ -58,6 +58,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
     fetchModerators();
     fetchBlockedUsers();
     fetchPinnedMessage();
+    fetchChatSettings();
     
     const channel = supabase
       .channel(`chat:${channelId}`)
@@ -98,12 +99,72 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
           fetchPinnedMessage();
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'chat_blocked_users',
+          filter: `channel_id=eq.${channelId}`
+        },
+        () => {
+          fetchBlockedUsers();
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [channelId]);
+
+  // Fetch chat settings and check if user can write
+  const fetchChatSettings = async () => {
+    const { data } = await supabase
+      .from("channels")
+      .select("chat_subscribers_only, chat_subscriber_wait_minutes")
+      .eq("id", channelId)
+      .single();
+
+    if (data) {
+      // @ts-ignore - new fields
+      const settings = {
+        chat_subscribers_only: data.chat_subscribers_only || false,
+        chat_subscriber_wait_minutes: data.chat_subscriber_wait_minutes || 0,
+      };
+      
+      if (settings.chat_subscribers_only && user) {
+        // Check if user is subscribed and for how long
+        const { data: subscription } = await supabase
+          .from("subscriptions")
+          .select("created_at")
+          .eq("channel_id", channelId)
+          .eq("user_id", user.id)
+          .single();
+
+        if (!subscription) {
+          // Not subscribed - can't write
+          toast({
+            title: t("subscribers_only"),
+            description: t("subscribe_to_chat"),
+            variant: "destructive",
+          });
+        } else if (settings.chat_subscriber_wait_minutes > 0) {
+          const subscribedAt = new Date(subscription.created_at);
+          const requiredTime = settings.chat_subscriber_wait_minutes * 60 * 1000;
+          const timeSinceSubscribed = Date.now() - subscribedAt.getTime();
+          
+          if (timeSinceSubscribed < requiredTime) {
+            const remainingMinutes = Math.ceil((requiredTime - timeSinceSubscribed) / 60000);
+            toast({
+              title: t("wait_to_chat"),
+              description: `${remainingMinutes} ${t("minutes_remaining")}`,
+            });
+          }
+        }
+      }
+    }
+  };
 
   // Show welcome message when user joins
   useEffect(() => {

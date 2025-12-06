@@ -369,6 +369,8 @@ export type Database = {
         Row: {
           category_id: string | null
           channel_type: Database["public"]["Enums"]["channel_type"]
+          chat_subscriber_wait_minutes: number | null
+          chat_subscribers_only: boolean | null
           created_at: string
           description: string | null
           donation_url: string | null
@@ -388,6 +390,8 @@ export type Database = {
         Insert: {
           category_id?: string | null
           channel_type: Database["public"]["Enums"]["channel_type"]
+          chat_subscriber_wait_minutes?: number | null
+          chat_subscribers_only?: boolean | null
           created_at?: string
           description?: string | null
           donation_url?: string | null
@@ -407,6 +411,8 @@ export type Database = {
         Update: {
           category_id?: string | null
           channel_type?: Database["public"]["Enums"]["channel_type"]
+          chat_subscriber_wait_minutes?: number | null
+          chat_subscribers_only?: boolean | null
           created_at?: string
           description?: string | null
           donation_url?: string | null
@@ -598,6 +604,35 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      favorite_channels: {
+        Row: {
+          channel_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "favorite_channels_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
             referencedColumns: ["id"]
           },
         ]

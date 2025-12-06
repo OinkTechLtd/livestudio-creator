@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Radio as RadioIcon } from "lucide-react";
+import HLSPlayer from "@/components/HLSPlayer";
 
 interface Channel {
   id: string;
@@ -10,12 +11,14 @@ interface Channel {
   streaming_method: "upload" | "live" | "scheduled";
   mux_playback_id: string | null;
   thumbnail_url: string | null;
+  is_live: boolean;
 }
 
 interface MediaContent {
   id: string;
   title: string;
   file_url: string;
+  is_24_7: boolean;
 }
 
 const EmbedPlayer = () => {
@@ -35,24 +38,25 @@ const EmbedPlayer = () => {
     try {
       const { data: channelData, error: channelError } = await supabase
         .from("channels")
-        .select("id, title, channel_type, streaming_method, mux_playback_id, thumbnail_url")
+        .select("id, title, channel_type, streaming_method, mux_playback_id, thumbnail_url, is_live")
         .eq("id", id)
         .single();
 
       if (channelError) throw channelError;
       setChannel(channelData);
 
-      // Fetch media content for all streaming methods except live
-      if (channelData.streaming_method !== "live") {
-        const { data: mediaData, error: mediaError } = await supabase
-          .from("media_content")
-          .select("id, title, file_url")
-          .eq("channel_id", id)
-          .order("created_at", { ascending: false });
+      // Fetch media content
+      const { data: mediaData, error: mediaError } = await supabase
+        .from("media_content")
+        .select("id, title, file_url, is_24_7")
+        .eq("channel_id", id)
+        .order("created_at", { ascending: true });
 
-        if (!mediaError && mediaData) {
-          setMediaContent(mediaData);
-        }
+      if (!mediaError && mediaData) {
+        // Filter to get active 24/7 content first, then others
+        const activeContent = mediaData.filter(m => m.is_24_7);
+        const allContent = activeContent.length > 0 ? activeContent : mediaData;
+        setMediaContent(allContent);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -145,19 +149,28 @@ const EmbedPlayer = () => {
             <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
             LIVE
           </div>
-          <video
-            key={currentMedia.id}
-            src={currentMedia.file_url}
-            autoPlay
-            muted={false}
-            playsInline
-            onEnded={handleEnded}
-            onContextMenu={(e) => e.preventDefault()}
-            controlsList="nodownload nofullscreen noremoteplayback"
-            disablePictureInPicture
-            className="w-full h-full object-contain"
-            style={{ pointerEvents: 'none' }}
-          />
+          {currentMedia.file_url.includes('.m3u8') ? (
+            <HLSPlayer
+              src={currentMedia.file_url}
+              autoPlay={true}
+              className="w-full h-full object-contain"
+              onEnded={handleEnded}
+            />
+          ) : (
+            <video
+              key={currentMedia.id}
+              src={currentMedia.file_url}
+              autoPlay
+              muted={false}
+              playsInline
+              onEnded={handleEnded}
+              onContextMenu={(e) => e.preventDefault()}
+              controlsList="nodownload nofullscreen noremoteplayback"
+              disablePictureInPicture
+              className="w-full h-full object-contain"
+              style={{ pointerEvents: 'none' }}
+            />
+          )}
         </>
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
