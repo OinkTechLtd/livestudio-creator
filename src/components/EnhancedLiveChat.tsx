@@ -51,6 +51,8 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
   const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
   const [pinnedMessage, setPinnedMessage] = useState<ChatMessage | null>(null);
   const [hasJoined, setHasJoined] = useState(false);
+  const [canWrite, setCanWrite] = useState(true);
+  const [chatRestrictionMessage, setChatRestrictionMessage] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -126,14 +128,20 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
       .eq("id", channelId)
       .single();
 
-    if (data) {
-      // @ts-ignore - new fields
+    if (data && user) {
       const settings = {
         chat_subscribers_only: data.chat_subscribers_only || false,
         chat_subscriber_wait_minutes: data.chat_subscriber_wait_minutes || 0,
       };
       
-      if (settings.chat_subscribers_only && user) {
+      // Check if user is channel owner - owners can always write
+      if (user.id === channelOwnerId) {
+        setCanWrite(true);
+        setChatRestrictionMessage("");
+        return;
+      }
+      
+      if (settings.chat_subscribers_only) {
         // Check if user is subscribed and for how long
         const { data: subscription } = await supabase
           .from("subscriptions")
@@ -144,11 +152,9 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
 
         if (!subscription) {
           // Not subscribed - can't write
-          toast({
-            title: t("subscribers_only"),
-            description: t("subscribe_to_chat"),
-            variant: "destructive",
-          });
+          setCanWrite(false);
+          setChatRestrictionMessage("Подпишитесь на канал, чтобы писать в чат");
+          return;
         } else if (settings.chat_subscriber_wait_minutes > 0) {
           const subscribedAt = new Date(subscription.created_at);
           const requiredTime = settings.chat_subscriber_wait_minutes * 60 * 1000;
@@ -156,14 +162,16 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
           
           if (timeSinceSubscribed < requiredTime) {
             const remainingMinutes = Math.ceil((requiredTime - timeSinceSubscribed) / 60000);
-            toast({
-              title: t("wait_to_chat"),
-              description: `${remainingMinutes} ${t("minutes_remaining")}`,
-            });
+            setCanWrite(false);
+            setChatRestrictionMessage(`Подождите ${remainingMinutes} мин. для отправки сообщений`);
+            return;
           }
         }
       }
     }
+    
+    setCanWrite(true);
+    setChatRestrictionMessage("");
   };
 
   // Show welcome message when user joins
@@ -277,7 +285,15 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
 
     if (blockedUsers.includes(user.id)) {
       toast({
-        title: t("blocked_user"),
+        title: "Вы заблокированы в этом чате",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!canWrite) {
+      toast({
+        title: chatRestrictionMessage || "Вы не можете писать в этот чат",
         variant: "destructive",
       });
       return;

@@ -13,6 +13,7 @@ import Header from "@/components/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "react-router-dom";
+import FavoriteChannels from "@/components/FavoriteChannels";
 
 interface Profile {
   id: string;
@@ -353,8 +354,9 @@ const Profile = () => {
 
         {/* Channels Tabs */}
         <Tabs defaultValue="channels" className="w-full">
-          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+          <TabsList className="grid w-full max-w-lg mx-auto grid-cols-3">
             <TabsTrigger value="channels">Мои каналы</TabsTrigger>
+            {isOwnProfile && <TabsTrigger value="favorites">Избранное</TabsTrigger>}
             {isOwnProfile && <TabsTrigger value="subscriptions">Подписки</TabsTrigger>}
           </TabsList>
 
@@ -455,6 +457,12 @@ const Profile = () => {
               )}
             </div>
           </TabsContent>
+
+          {isOwnProfile && (
+            <TabsContent value="favorites" className="mt-6">
+              <FavoriteChannels />
+            </TabsContent>
+          )}
 
           {isOwnProfile && (
             <TabsContent value="subscriptions" className="mt-6">
