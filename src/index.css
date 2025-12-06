@@ -66,6 +66,8 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
     font-family: 'Inter', sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
   }
   
   h1, h2, h3, h4, h5, h6 {
@@ -113,7 +115,8 @@ All colors MUST be HSL.
   
   /* Scrollbar styling */
   ::-webkit-scrollbar {
-    width: 10px;
+    width: 6px;
+    height: 6px;
   }
   
   ::-webkit-scrollbar-track {
@@ -122,11 +125,20 @@ All colors MUST be HSL.
   
   ::-webkit-scrollbar-thumb {
     background: hsl(var(--primary));
-    border-radius: 5px;
+    border-radius: 3px;
   }
   
   ::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--primary-glow));
+  }
+
+  /* Safe area for mobile */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top, 0);
   }
 }
 
@@ -144,5 +156,27 @@ All colors MUST be HSL.
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  /* Hide scrollbar but allow scrolling */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Touch-friendly */
+  .touch-action-manipulation {
+    touch-action: manipulation;
+  }
+}
+
+/* PWA specific */
+@media (display-mode: standalone) {
+  body {
+    overscroll-behavior: none;
   }
 }
