@@ -191,6 +191,13 @@ const PointsRewardsSystem = ({ channelId, isOwner }: PointsRewardsSystemProps) =
       return;
     }
 
+    // Get user profile for notification
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", user.id)
+      .single();
+
     // Create redemption record
     const { error: redemptionError } = await supabase
       .from("reward_redemptions")
@@ -202,6 +209,31 @@ const PointsRewardsSystem = ({ channelId, isOwner }: PointsRewardsSystemProps) =
       });
 
     if (!redemptionError) {
+      // Send notification to channel owner about redemption
+      const { data: channel } = await supabase
+        .from("channels")
+        .select("user_id, title")
+        .eq("id", channelId)
+        .single();
+
+      if (channel) {
+        // Create in-app notification for channel owner
+        await supabase.from("notifications").insert({
+          user_id: channel.user_id,
+          channel_id: channelId,
+          type: "reward_redemption",
+          title: "🎁 Награда получена!",
+          message: `${profile?.username || "Пользователь"} получил награду "${reward.title}" за ${reward.cost} баллов`,
+        });
+
+        // Also send message to chat
+        await supabase.from("chat_messages").insert({
+          channel_id: channelId,
+          user_id: user.id,
+          message: `🎁 ${profile?.username || "Пользователь"} получил награду: ${reward.title}!`,
+        });
+      }
+
       toast({
         title: "Награда получена!",
         description: `Вы получили: ${reward.title}`,
