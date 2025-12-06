@@ -24,8 +24,12 @@ import {
   Users,
   Bot,
   Gift,
-  Settings
+  Settings,
+  Monitor,
+  Mic
 } from "lucide-react";
+import ScreenShareStreaming from "@/components/ScreenShareStreaming";
+import VoiceStreaming from "@/components/VoiceStreaming";
 import Header from "@/components/Header";
 import {
   Dialog,
@@ -717,6 +721,18 @@ const ChannelView = () => {
             {isOwner && channel.streaming_method === "live" && (
               <TabsTrigger value="obs" className="text-xs md:text-sm">OBS</TabsTrigger>
             )}
+            {isOwner && channel.channel_type === "tv" && (
+              <TabsTrigger value="webrtc" className="text-xs md:text-sm">
+                <Monitor className="w-3 h-3 md:w-4 md:h-4 mr-1" />
+                <span className="hidden md:inline">Экран/Камера</span>
+              </TabsTrigger>
+            )}
+            {isOwner && channel.channel_type === "radio" && (
+              <TabsTrigger value="voice" className="text-xs md:text-sm">
+                <Mic className="w-3 h-3 md:w-4 md:h-4 mr-1" />
+                <span className="hidden md:inline">Голосовой эфир</span>
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="player" className="mt-4 md:mt-6">
@@ -967,6 +983,24 @@ const ChannelView = () => {
                     </div>
                   </div>
                 )}
+              </div>
+            </TabsContent>
+          )}
+
+          {isOwner && channel.channel_type === "tv" && (
+            <TabsContent value="webrtc" className="mt-4 md:mt-6">
+              <div className="bg-card border border-border rounded-lg p-4 md:p-6">
+                <h3 className="text-lg font-bold mb-4">Трансляция экрана или веб-камеры</h3>
+                <ScreenShareStreaming channelId={channel.id} />
+              </div>
+            </TabsContent>
+          )}
+
+          {isOwner && channel.channel_type === "radio" && (
+            <TabsContent value="voice" className="mt-4 md:mt-6">
+              <div className="bg-card border border-border rounded-lg p-4 md:p-6">
+                <h3 className="text-lg font-bold mb-4">Голосовой эфир</h3>
+                <VoiceStreaming channelId={channel.id} />
               </div>
             </TabsContent>
           )}
