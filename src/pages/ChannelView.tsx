@@ -33,6 +33,9 @@ import ScreenShareStreaming from "@/components/ScreenShareStreaming";
 import VoiceStreaming from "@/components/VoiceStreaming";
 import HLSPlayer from "@/components/HLSPlayer";
 import Header from "@/components/Header";
+import FavoriteButton from "@/components/FavoriteButton";
+import RealtimeAnalytics from "@/components/RealtimeAnalytics";
+import ChatSettings from "@/components/ChatSettings";
 import {
   Dialog,
   DialogContent,
@@ -633,9 +636,10 @@ const ChannelView = () => {
           )}
         </div>
 
-        {/* Subscribe, Like/Dislike and Embed Code */}
+        {/* Subscribe, Like/Dislike, Favorite and Embed Code */}
         <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-4 md:mb-6">
           {!isOwner && <SubscribeButton channelId={channel.id} channelTitle={channel.title} />}
+          {!isOwner && <FavoriteButton channelId={channel.id} channelTitle={channel.title} />}
           <LikeDislikeSection channelId={channel.id} />
           
           {channel.donation_url && (
@@ -713,6 +717,12 @@ const ChannelView = () => {
               <TabsTrigger value="analytics" className="text-xs md:text-sm">
                 <BarChart3 className="w-3 h-3 md:w-4 md:h-4 mr-1" />
                 <span className="hidden md:inline">Аналитика</span>
+              </TabsTrigger>
+            )}
+            {isOwner && (
+              <TabsTrigger value="settings" className="text-xs md:text-sm">
+                <Settings className="w-3 h-3 md:w-4 md:h-4 mr-1" />
+                <span className="hidden md:inline">Настройки чата</span>
               </TabsTrigger>
             )}
             {isOwner && (
@@ -948,7 +958,18 @@ const ChannelView = () => {
 
           {isOwner && (
             <TabsContent value="analytics" className="mt-4 md:mt-6">
-              <ChannelAnalytics channelId={channel.id} />
+              <div className="space-y-6">
+                <RealtimeAnalytics channelId={channel.id} />
+                <ChannelAnalytics channelId={channel.id} />
+              </div>
+            </TabsContent>
+          )}
+
+          {isOwner && (
+            <TabsContent value="settings" className="mt-4 md:mt-6">
+              <div className="bg-card border border-border rounded-lg p-4 md:p-6">
+                <ChatSettings channelId={channel.id} isOwner={isOwner} />
+              </div>
             </TabsContent>
           )}
 

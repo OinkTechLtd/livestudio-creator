@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -8,16 +9,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tv, Radio, LogOut, User, PlusCircle, Search } from "lucide-react";
+import { Tv, Radio, LogOut, User, PlusCircle, Search, UserPlus, Github } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { NotificationBell } from "@/components/NotificationBell";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
+import InvitationHandler from "@/components/InvitationHandler";
 
 const Header = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const [showInvitations, setShowInvitations] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -63,7 +66,19 @@ const Header = () => {
           </Link>
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3">
+          <a
+            href="https://github.com/OinkTechLtd/livestudio-creator"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden md:flex"
+          >
+            <Button variant="ghost" size="sm" className="gap-2">
+              <Github className="w-4 h-4" />
+              <span className="hidden lg:inline">GitHub</span>
+            </Button>
+          </a>
+          
           <div className="hidden md:block">
             <LanguageSwitcher />
           </div>
@@ -95,6 +110,10 @@ const Header = () => {
                     <User className="mr-2 h-4 w-4" />
                     <span>{t("profile")}</span>
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowInvitations(true)}>
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    <span>Приглашения</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate("/create-channel")} className="md:hidden">
                     <PlusCircle className="mr-2 h-4 w-4" />
                     <span>{t("create_channel")}</span>
@@ -114,6 +133,8 @@ const Header = () => {
           )}
         </div>
       </div>
+      
+      <InvitationHandler open={showInvitations} onOpenChange={setShowInvitations} />
     </header>
   );
 };

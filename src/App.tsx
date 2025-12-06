@@ -7,6 +7,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import DevToolsBlocker from "@/components/DevToolsBlocker";
 import MobileNavigation from "@/components/MobileNavigation";
 import AppSidebar from "@/components/AppSidebar";
+import SeasonalEffects from "@/components/SeasonalEffects";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import CreateChannel from "./pages/CreateChannel";
@@ -24,6 +25,7 @@ const App = () => (
     <LanguageProvider>
       <TooltipProvider>
         <DevToolsBlocker />
+        <SeasonalEffects />
         <Toaster />
         <Sonner />
         <BrowserRouter>
