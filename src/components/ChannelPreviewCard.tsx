@@ -1,8 +1,9 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, Eye, Radio, Tv, Play } from "lucide-react";
+import { Users, Eye, Radio, Tv, Play, Loader2 } from "lucide-react";
+import Hls from "hls.js";
 
 interface Channel {
   id: string;
@@ -27,25 +28,95 @@ interface ChannelPreviewCardProps {
 const ChannelPreviewCard = ({ channel, t }: ChannelPreviewCardProps) => {
   const [isHovering, setIsHovering] = useState(false);
   const [previewLoaded, setPreviewLoaded] = useState(false);
+  const [previewError, setPreviewError] = useState(false);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  const handleMouseEnter = () => {
-    setIsHovering(true);
-    if (videoRef.current && channel.channel_type === "tv") {
-      videoRef.current.play().catch(() => {});
-    }
-  };
-
-  const handleMouseLeave = () => {
-    setIsHovering(false);
-    if (videoRef.current) {
-      videoRef.current.pause();
-      videoRef.current.currentTime = 0;
-    }
-  };
+  const hlsRef = useRef<Hls | null>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Build preview URL from the HLS playlist endpoint
   const previewUrl = `https://aqeleulwobgamdffkfri.functions.supabase.co/hls-playlist?channelId=${channel.id}`;
+
+  const handleMouseEnter = () => {
+    if (channel.channel_type !== "tv") return;
+    
+    // Delay before starting preview to avoid unnecessary loads
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsHovering(true);
+      setIsLoadingPreview(true);
+      setPreviewError(false);
+      
+      if (videoRef.current) {
+        // Use HLS.js for m3u8 playback
+        if (Hls.isSupported()) {
+          const hls = new Hls({
+            enableWorker: false,
+            lowLatencyMode: false,
+            maxBufferLength: 5,
+            maxMaxBufferLength: 10,
+          });
+          
+          hls.loadSource(previewUrl);
+          hls.attachMedia(videoRef.current);
+          
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            videoRef.current?.play().catch(() => {});
+            setPreviewLoaded(true);
+            setIsLoadingPreview(false);
+          });
+          
+          hls.on(Hls.Events.ERROR, (event, data) => {
+            console.error("HLS preview error:", data);
+            setPreviewError(true);
+            setIsLoadingPreview(false);
+          });
+          
+          hlsRef.current = hls;
+        } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+          // Native HLS support (Safari)
+          videoRef.current.src = previewUrl;
+          videoRef.current.play().catch(() => {});
+          setPreviewLoaded(true);
+          setIsLoadingPreview(false);
+        } else {
+          setPreviewError(true);
+          setIsLoadingPreview(false);
+        }
+      }
+    }, 500);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    
+    setIsHovering(false);
+    setPreviewLoaded(false);
+    setIsLoadingPreview(false);
+    
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+    
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.src = "";
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+      }
+    };
+  }, []);
 
   return (
     <Link to={`/channel/${channel.id}`}>
@@ -74,9 +145,7 @@ const ChannelPreviewCard = ({ channel, t }: ChannelPreviewCardProps) => {
                 loop
                 playsInline
                 onLoadedData={() => setPreviewLoaded(true)}
-              >
-                <source src={previewUrl} type="application/x-mpegURL" />
-              </video>
+              />
               {!previewLoaded && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/50">
                   <Play className="w-12 h-12 text-white animate-pulse" />
@@ -99,10 +168,21 @@ const ChannelPreviewCard = ({ channel, t }: ChannelPreviewCardProps) => {
           {/* Hover indicator */}
           {isHovering && channel.channel_type === "tv" && (
             <div className="absolute bottom-2 left-2 right-2 flex justify-center">
-              <Badge variant="secondary" className="bg-black/70 text-white text-xs">
-                <Play className="w-3 h-3 mr-1" />
-                Предпросмотр
-              </Badge>
+              {isLoadingPreview ? (
+                <Badge variant="secondary" className="bg-black/70 text-white text-xs">
+                  <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  Загрузка...
+                </Badge>
+              ) : previewError ? (
+                <Badge variant="secondary" className="bg-black/70 text-white text-xs">
+                  Предпросмотр недоступен
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="bg-black/70 text-white text-xs">
+                  <Play className="w-3 h-3 mr-1" />
+                  Предпросмотр
+                </Badge>
+              )}
             </div>
           )}
 
