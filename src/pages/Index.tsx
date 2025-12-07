@@ -1,12 +1,10 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/Header";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Users, Eye, Radio, Tv, TrendingUp } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from "@/contexts/LanguageContext";
+import ChannelPreviewCard from "@/components/ChannelPreviewCard";
 
 interface Channel {
   id: string;
@@ -66,58 +64,6 @@ const Index = () => {
     }
   };
 
-  const ChannelCard = ({ channel }: { channel: Channel }) => (
-    <Link to={`/channel/${channel.id}`}>
-      <Card className="overflow-hidden hover:shadow-lg transition-shadow group">
-        <div className="relative aspect-video bg-muted">
-          {channel.thumbnail_url ? (
-            <img
-              src={channel.thumbnail_url}
-              alt={channel.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-accent/10">
-              {channel.channel_type === "tv" ? (
-                <Tv className="w-12 h-12 md:w-16 md:h-16 text-muted-foreground" />
-              ) : (
-                <Radio className="w-12 h-12 md:w-16 md:h-16 text-muted-foreground" />
-              )}
-            </div>
-          )}
-          {channel.is_live && (
-            <Badge className="absolute top-2 left-2 bg-red-600 animate-pulse text-xs">
-              <span className="w-2 h-2 bg-white rounded-full mr-1" />
-              LIVE
-            </Badge>
-          )}
-          <Badge variant="secondary" className="absolute top-2 right-2 text-xs">
-            {channel.channel_type === "tv" ? t("tv") : t("radio")}
-          </Badge>
-        </div>
-        <CardContent className="p-3 md:p-4">
-          <h3 className="font-semibold mb-1 line-clamp-1 text-sm md:text-base">{channel.title}</h3>
-          <p className="text-xs md:text-sm text-muted-foreground mb-2 line-clamp-2">
-            {channel.description || "Описание отсутствует"}
-          </p>
-          <div className="flex items-center justify-between text-xs md:text-sm text-muted-foreground">
-            <span className="truncate max-w-[80px] md:max-w-none">{channel.profiles.username}</span>
-            <div className="flex items-center gap-2 md:gap-3">
-              <span className="flex items-center gap-1">
-                <Eye className="w-3 h-3 md:w-4 md:h-4" />
-                {channel.viewer_count || 0}
-              </span>
-              <span className="flex items-center gap-1">
-                <Users className="w-3 h-3 md:w-4 md:h-4" />
-                {channel.subscriptions[0]?.count || 0}
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
-  );
-
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
       <Header />
@@ -148,7 +94,7 @@ const Index = () => {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
                 {channels.map((channel) => (
-                  <ChannelCard key={channel.id} channel={channel} />
+                  <ChannelPreviewCard key={channel.id} channel={channel} t={t} />
                 ))}
               </div>
             )}
@@ -157,7 +103,7 @@ const Index = () => {
           <TabsContent value="trending">
             <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
               {trendingChannels.map((channel) => (
-                <ChannelCard key={channel.id} channel={channel} />
+                <ChannelPreviewCard key={channel.id} channel={channel} t={t} />
               ))}
             </div>
           </TabsContent>
@@ -167,7 +113,7 @@ const Index = () => {
               {channels
                 .filter((ch) => ch.channel_type === "tv")
                 .map((channel) => (
-                  <ChannelCard key={channel.id} channel={channel} />
+                  <ChannelPreviewCard key={channel.id} channel={channel} t={t} />
                 ))}
             </div>
           </TabsContent>
@@ -177,7 +123,7 @@ const Index = () => {
               {channels
                 .filter((ch) => ch.channel_type === "radio")
                 .map((channel) => (
-                  <ChannelCard key={channel.id} channel={channel} />
+                  <ChannelPreviewCard key={channel.id} channel={channel} t={t} />
                 ))}
             </div>
           </TabsContent>
