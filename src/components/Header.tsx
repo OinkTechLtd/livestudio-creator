@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tv, Radio, LogOut, User, PlusCircle, Search, UserPlus, Github } from "lucide-react";
+import { Tv, Radio, LogOut, User, PlusCircle, Search, UserPlus, Github, History } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { NotificationBell } from "@/components/NotificationBell";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -67,6 +67,12 @@ const Header = () => {
         </nav>
 
         <div className="flex items-center gap-2 md:gap-3">
+          <Link to="/changelog" className="hidden md:flex">
+            <Button variant="ghost" size="sm" className="gap-2">
+              <History className="w-4 h-4" />
+              <span className="hidden lg:inline">Обновления</span>
+            </Button>
+          </Link>
           <a
             href="https://github.com/OinkTechLtd/livestudio-creator"
             target="_blank"

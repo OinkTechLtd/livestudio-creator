@@ -122,13 +122,34 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
 
   // Fetch chat settings and check if user can write
   const fetchChatSettings = async () => {
+    if (!user) {
+      // Non-logged in users can't write
+      setCanWrite(false);
+      setChatRestrictionMessage("Войдите для отправки сообщений");
+      return;
+    }
+
+    // First check if user is blocked
+    const { data: blockedData } = await supabase
+      .from("chat_blocked_users")
+      .select("id")
+      .eq("channel_id", channelId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (blockedData) {
+      setCanWrite(false);
+      setChatRestrictionMessage("Вы заблокированы в этом чате");
+      return;
+    }
+
     const { data } = await supabase
       .from("channels")
       .select("chat_subscribers_only, chat_subscriber_wait_minutes")
       .eq("id", channelId)
       .single();
 
-    if (data && user) {
+    if (data) {
       const settings = {
         chat_subscribers_only: data.chat_subscribers_only || false,
         chat_subscriber_wait_minutes: data.chat_subscriber_wait_minutes || 0,
@@ -136,6 +157,20 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
       
       // Check if user is channel owner - owners can always write
       if (user.id === channelOwnerId) {
+        setCanWrite(true);
+        setChatRestrictionMessage("");
+        return;
+      }
+
+      // Check if user is a moderator - moderators can always write
+      const { data: modData } = await supabase
+        .from("channel_moderators")
+        .select("id")
+        .eq("channel_id", channelId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (modData) {
         setCanWrite(true);
         setChatRestrictionMessage("");
         return;
@@ -148,7 +183,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
           .select("created_at")
           .eq("channel_id", channelId)
           .eq("user_id", user.id)
-          .single();
+          .maybeSingle();
 
         if (!subscription) {
           // Not subscribed - can't write

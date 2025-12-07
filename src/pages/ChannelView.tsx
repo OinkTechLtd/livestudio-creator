@@ -38,6 +38,7 @@ import RealtimeAnalytics from "@/components/RealtimeAnalytics";
 import ChatSettings from "@/components/ChatSettings";
 import AdManager from "@/components/AdManager";
 import TorrentUploader from "@/components/TorrentUploader";
+import VideoProgressBar from "@/components/VideoProgressBar";
 import {
   Dialog,
   DialogContent,
@@ -60,7 +61,7 @@ import ChatBot from "@/components/ChatBot";
 import PointsRewardsSystem from "@/components/PointsRewardsSystem";
 import ChannelMemberManager from "@/components/ChannelMemberManager";
 import { useScheduledPlayback } from "@/hooks/useScheduledPlayback";
-import { Film } from "lucide-react";
+import { Film, Download } from "lucide-react";
 
 interface Channel {
   id: string;
@@ -437,6 +438,37 @@ const ChannelView = () => {
     });
   };
 
+  const downloadM3uFile = () => {
+    if (!channel || !mediaContent.length) return;
+    
+    // Build M3U playlist content
+    const activeMedia = mediaContent.filter(m => m.is_24_7);
+    let m3uContent = "#EXTM3U\n";
+    m3uContent += `#PLAYLIST:${channel.title}\n\n`;
+    
+    activeMedia.forEach((media) => {
+      const duration = media.duration || -1;
+      m3uContent += `#EXTINF:${duration},${media.title}\n`;
+      m3uContent += `${media.file_url}\n\n`;
+    });
+    
+    // Create and download file
+    const blob = new Blob([m3uContent], { type: "audio/x-mpegurl" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${channel.title.replace(/[^a-zA-Z0-9]/g, "_")}.m3u`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: "Скачано",
+      description: "M3U файл плейлиста сохранён",
+    });
+  };
+
   const openPopoutPlayer = () => {
     const popoutUrl = `${window.location.origin}/popout/${channel?.id}`;
     window.open(popoutUrl, 'popout', 'width=1200,height=700,menubar=no,toolbar=no,location=no,status=no');
@@ -487,12 +519,25 @@ const ChannelView = () => {
   };
 
   const handleMediaEnded = async () => {
-    // Use scheduled playback handler for proper MSK timezone scheduling
-    scheduledPlayback.handleMediaEnded();
-    const nextIndex = scheduledPlayback.currentMediaIndex;
+    // Get active media (is_24_7 enabled)
+    const activeMedia = mediaContent.filter(m => m.is_24_7);
+    if (activeMedia.length === 0) return;
+
+    // Find current index in active media
+    const currentActiveIndex = activeMedia.findIndex(m => m.id === mediaContent[currentMediaIndex]?.id);
     
-    if (isOwner && mediaContent[nextIndex]) {
-      await updatePlaybackState(mediaContent[nextIndex].id, 0);
+    // Move to next, loop back to start if at end
+    const nextActiveIndex = (currentActiveIndex + 1) % activeMedia.length;
+    const nextMedia = activeMedia[nextActiveIndex];
+    
+    // Find index in full mediaContent array
+    const nextFullIndex = mediaContent.findIndex(m => m.id === nextMedia.id);
+    if (nextFullIndex !== -1) {
+      setCurrentMediaIndex(nextFullIndex);
+      
+      if (isOwner && nextMedia) {
+        await updatePlaybackState(nextMedia.id, 0);
+      }
     }
   };
 
@@ -681,10 +726,19 @@ const ChannelView = () => {
                   <div className="bg-muted p-4 rounded-lg">
                     <code className="text-sm break-all">{getM3u8Url()}</code>
                   </div>
-                  <Button onClick={copyM3u8Url} variant="secondary" className="w-full mt-2">
-                    <Link className="w-4 h-4 mr-2" />
-                    Скопировать M3U8 ссылку
-                  </Button>
+                  <div className="flex gap-2 mt-2">
+                    <Button onClick={copyM3u8Url} variant="secondary" className="flex-1">
+                      <Link className="w-4 h-4 mr-2" />
+                      Скопировать ссылку
+                    </Button>
+                    <Button onClick={downloadM3uFile} variant="outline" className="flex-1">
+                      <Download className="w-4 h-4 mr-2" />
+                      Скачать M3U файл
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    M3U файл можно использовать в IPTV приложениях (IPTV Smarters, TiviMate и др.)
+                  </p>
                 </div>
               </div>
             </DialogContent>
@@ -831,32 +885,38 @@ const ChannelView = () => {
                           }}
                         />
                       ) : (
-                        <video
-                          ref={videoRef}
-                          key={mediaContent[currentMediaIndex]?.id || 'video'}
-                          src={mediaContent[currentMediaIndex]?.file_url}
-                          autoPlay
-                          loop={false}
-                          playsInline
-                          className="w-full h-full object-contain"
-                          onContextMenu={(e) => e.preventDefault()}
-                          controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
-                          disablePictureInPicture
-                          style={{ pointerEvents: 'none' }}
-                          onEnded={handleMediaEnded}
-                          onTimeUpdate={handleTimeUpdate}
-                          onLoadedMetadata={() => {
-                            if (playbackState && videoRef.current) {
-                              syncToServerTime(playbackState);
-                            }
-                          }}
-                          onError={(e) => {
-                            console.error("Video error:", e);
-                            if (currentMediaIndex < mediaContent.length - 1) {
-                              setCurrentMediaIndex(currentMediaIndex + 1);
-                            }
-                          }}
-                        />
+                        <>
+                          <video
+                            ref={videoRef}
+                            key={mediaContent[currentMediaIndex]?.id || 'video'}
+                            src={mediaContent[currentMediaIndex]?.file_url}
+                            autoPlay
+                            loop={false}
+                            playsInline
+                            className="w-full h-full object-contain"
+                            onContextMenu={(e) => e.preventDefault()}
+                            controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
+                            disablePictureInPicture
+                            style={{ pointerEvents: 'none' }}
+                            onEnded={handleMediaEnded}
+                            onTimeUpdate={handleTimeUpdate}
+                            onLoadedMetadata={() => {
+                              if (playbackState && videoRef.current) {
+                                syncToServerTime(playbackState);
+                              }
+                            }}
+                            onError={(e) => {
+                              console.error("Video error:", e);
+                              // Try next media on error
+                              handleMediaEnded();
+                            }}
+                          />
+                          <VideoProgressBar
+                            mediaTitle={mediaContent[currentMediaIndex]?.title}
+                            duration={mediaContent[currentMediaIndex]?.duration || undefined}
+                            videoRef={videoRef}
+                          />
+                        </>
                       )
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-background to-primary/10">
