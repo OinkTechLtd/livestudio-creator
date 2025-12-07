@@ -258,6 +258,46 @@ const MediaManager = ({
     }
   };
 
+  const activateAllMedia = async () => {
+    const { error } = await supabase
+      .from("media_content")
+      .update({ is_24_7: true })
+      .eq("channel_id", channelId);
+
+    if (!error) {
+      fetchMediaContent();
+      toast({ title: "Все файлы добавлены в эфир" });
+    }
+  };
+
+  const shufflePlaylist = async () => {
+    // Get current active media
+    const activeMedia = mediaContent.filter(m => m.is_24_7);
+    if (activeMedia.length < 2) {
+      toast({ title: "Добавьте больше файлов для перемешивания" });
+      return;
+    }
+
+    // Fisher-Yates shuffle
+    const shuffled = [...activeMedia];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    // Update order by updating created_at (simple approach)
+    const now = new Date();
+    for (let i = 0; i < shuffled.length; i++) {
+      await supabase
+        .from("media_content")
+        .update({ created_at: new Date(now.getTime() - i * 1000).toISOString() })
+        .eq("id", shuffled[i].id);
+    }
+
+    fetchMediaContent();
+    toast({ title: "Плейлист перемешан" });
+  };
+
   return (
     <div className="space-y-4">
       {/* Storage Usage */}
@@ -373,9 +413,31 @@ const MediaManager = ({
       {/* Media List */}
       {mediaContent.length > 0 && (
         <div className="space-y-3">
-          <h3 className="font-semibold">
-            Медиафайлы ({mediaContent.length}):
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold">
+              Медиафайлы ({mediaContent.length}):
+            </h3>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={activateAllMedia}
+                className="gap-1"
+              >
+                <Play className="w-3 h-3" />
+                Все в эфир
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={shufflePlaylist}
+                className="gap-1"
+              >
+                <Shuffle className="w-3 h-3" />
+                Перемешать
+              </Button>
+            </div>
+          </div>
           {mediaContent.map((media) => (
             <div
               key={media.id}

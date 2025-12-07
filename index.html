@@ -12,6 +12,11 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="StreamLiveTV" />
 
+    <!-- Disable caching for WebView -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/pwa-192x192.png" />
@@ -34,8 +39,32 @@
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('SW registered'))
+            .then(reg => {
+              console.log('SW registered');
+              // Force update check
+              reg.update();
+              // Skip waiting for new service worker
+              if (reg.waiting) {
+                reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+              }
+              reg.addEventListener('updatefound', () => {
+                const newWorker = reg.installing;
+                if (newWorker) {
+                  newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      newWorker.postMessage({ type: 'SKIP_WAITING' });
+                      window.location.reload();
+                    }
+                  });
+                }
+              });
+            })
             .catch(err => console.log('SW registration failed:', err));
+        });
+        
+        // Reload on controller change
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.location.reload();
         });
       }
     </script>
