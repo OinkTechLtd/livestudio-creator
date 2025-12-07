@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Download, FileVideo, Film, Tv, AlertCircle, Loader2 } from "lucide-react";
+import { Download, FileVideo, Film, Tv, AlertCircle, Loader2, Plus } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -22,12 +23,14 @@ interface TorrentFile {
 interface TorrentUploaderProps {
   channelId: string;
   onTorrentParsed?: (files: TorrentFile[]) => void;
+  onMediaAdded?: () => void;
 }
 
-const TorrentUploader = ({ channelId, onTorrentParsed }: TorrentUploaderProps) => {
+const TorrentUploader = ({ channelId, onTorrentParsed, onMediaAdded }: TorrentUploaderProps) => {
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAddingMedia, setIsAddingMedia] = useState(false);
   const [parsedFiles, setParsedFiles] = useState<TorrentFile[]>([]);
   const [magnetLink, setMagnetLink] = useState("");
 
@@ -232,6 +235,57 @@ const TorrentUploader = ({ channelId, onTorrentParsed }: TorrentUploaderProps) =
     }
   };
 
+  // Add parsed video files to media content
+  const addToMediaLibrary = async () => {
+    const supportedFiles = parsedFiles.filter(f => f.type !== "unsupported");
+    
+    if (supportedFiles.length === 0) {
+      toast({
+        title: "Нет подходящих файлов",
+        description: "Торрент не содержит видеофайлов",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsAddingMedia(true);
+
+    try {
+      const mediaItems = supportedFiles.map(file => ({
+        channel_id: channelId,
+        title: file.name,
+        file_url: `torrent://${file.name}`, // Placeholder URL - requires torrent client
+        file_type: "video/mp4",
+        source_type: "torrent",
+        is_24_7: false,
+      }));
+
+      const { error } = await supabase
+        .from("media_content")
+        .insert(mediaItems);
+
+      if (error) throw error;
+
+      toast({
+        title: "Файлы добавлены",
+        description: `${supportedFiles.length} видео добавлено в библиотеку`,
+      });
+
+      onMediaAdded?.();
+      setIsOpen(false);
+      setParsedFiles([]);
+    } catch (error: any) {
+      console.error("Error adding media:", error);
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось добавить файлы",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAddingMedia(false);
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
@@ -286,31 +340,48 @@ const TorrentUploader = ({ channelId, onTorrentParsed }: TorrentUploaderProps) =
           )}
 
           {parsedFiles.length > 0 && (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              <h4 className="font-medium">Содержимое торрента:</h4>
-              {parsedFiles.map((file, index) => (
-                <div
-                  key={index}
-                  className={`p-3 rounded-lg border ${
-                    file.type === "unsupported" 
-                      ? "bg-muted/50 border-muted" 
-                      : "bg-card border-border"
-                  }`}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium">Содержимое торрента:</h4>
+                <Button
+                  onClick={addToMediaLibrary}
+                  disabled={isAddingMedia || parsedFiles.filter(f => f.type !== "unsupported").length === 0}
+                  size="sm"
+                  className="gap-2"
                 >
-                  <div className="flex items-start gap-2">
-                    {getTypeIcon(file.type)}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{file.name}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-muted-foreground">
-                          {formatSize(file.size)}
-                        </span>
-                        {getTypeBadge(file.type)}
+                  {isAddingMedia ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Plus className="w-4 h-4" />
+                  )}
+                  Добавить в библиотеку
+                </Button>
+              </div>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {parsedFiles.map((file, index) => (
+                  <div
+                    key={index}
+                    className={`p-3 rounded-lg border ${
+                      file.type === "unsupported" 
+                        ? "bg-muted/50 border-muted" 
+                        : "bg-card border-border"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      {getTypeIcon(file.type)}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{file.name}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs text-muted-foreground">
+                            {formatSize(file.size)}
+                          </span>
+                          {getTypeBadge(file.type)}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
 

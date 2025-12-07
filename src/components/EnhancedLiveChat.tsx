@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Send, Crown, Shield, UserPlus, UserMinus, Pin, Ban, MoreVertical, Bot, 
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import ViewerCounter from "@/components/ViewerCounter";
+import ChatEmojiPicker from "@/components/ChatEmojiPicker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -41,7 +42,7 @@ interface EnhancedLiveChatProps {
 }
 
 const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const { t } = useLanguage();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -53,6 +54,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
   const [hasJoined, setHasJoined] = useState(false);
   const [canWrite, setCanWrite] = useState(true);
   const [chatRestrictionMessage, setChatRestrictionMessage] = useState("");
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -121,11 +123,17 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
   }, [channelId]);
 
   // Fetch chat settings and check if user can write
-  const fetchChatSettings = async () => {
+  const fetchChatSettings = useCallback(async () => {
+    // Wait for auth to finish loading
+    if (authLoading) {
+      return;
+    }
+
     if (!user) {
       // Non-logged in users can't write
       setCanWrite(false);
       setChatRestrictionMessage("Войдите для отправки сообщений");
+      setSettingsLoaded(true);
       return;
     }
 
@@ -140,12 +148,13 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
     if (blockedData) {
       setCanWrite(false);
       setChatRestrictionMessage("Вы заблокированы в этом чате");
+      setSettingsLoaded(true);
       return;
     }
 
     const { data } = await supabase
       .from("channels")
-      .select("chat_subscribers_only, chat_subscriber_wait_minutes")
+      .select("chat_subscribers_only, chat_subscriber_wait_minutes, user_id")
       .eq("id", channelId)
       .single();
 
@@ -156,9 +165,10 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
       };
       
       // Check if user is channel owner - owners can always write
-      if (user.id === channelOwnerId) {
+      if (user.id === data.user_id || user.id === channelOwnerId) {
         setCanWrite(true);
         setChatRestrictionMessage("");
+        setSettingsLoaded(true);
         return;
       }
 
@@ -173,6 +183,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
       if (modData) {
         setCanWrite(true);
         setChatRestrictionMessage("");
+        setSettingsLoaded(true);
         return;
       }
       
@@ -189,6 +200,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
           // Not subscribed - can't write
           setCanWrite(false);
           setChatRestrictionMessage("Подпишитесь на канал, чтобы писать в чат");
+          setSettingsLoaded(true);
           return;
         } else if (settings.chat_subscriber_wait_minutes > 0) {
           const subscribedAt = new Date(subscription.created_at);
@@ -199,6 +211,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
             const remainingMinutes = Math.ceil((requiredTime - timeSinceSubscribed) / 60000);
             setCanWrite(false);
             setChatRestrictionMessage(`Подождите ${remainingMinutes} мин. для отправки сообщений`);
+            setSettingsLoaded(true);
             return;
           }
         }
@@ -207,7 +220,15 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
     
     setCanWrite(true);
     setChatRestrictionMessage("");
-  };
+    setSettingsLoaded(true);
+  }, [user, authLoading, channelId, channelOwnerId]);
+
+  // Re-fetch settings when auth state changes
+  useEffect(() => {
+    if (!authLoading) {
+      fetchChatSettings();
+    }
+  }, [user, authLoading, fetchChatSettings]);
 
   // Show welcome message when user joins
   useEffect(() => {
@@ -629,23 +650,36 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
       </ScrollArea>
 
       <form onSubmit={sendMessage} className="p-4 border-t border-border">
-        <div className="flex gap-2">
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder={user ? t("write_message") : t("login_to_send")}
-            disabled={!user || isLoading}
-            maxLength={500}
-            className="bg-muted/50"
-          />
-          <Button 
-            type="submit" 
-            size="icon"
-            disabled={!user || isLoading || !newMessage.trim()}
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </div>
+        {!settingsLoaded ? (
+          <div className="flex justify-center py-2">
+            <span className="text-xs text-muted-foreground">Загрузка...</span>
+          </div>
+        ) : !canWrite ? (
+          <div className="text-center py-2">
+            <span className="text-xs text-muted-foreground">{chatRestrictionMessage}</span>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <div className="flex-1 flex gap-1">
+              <Input
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder={t("write_message")}
+                disabled={isLoading}
+                maxLength={500}
+                className="bg-muted/50 flex-1"
+              />
+              <ChatEmojiPicker onEmojiSelect={(emoji) => setNewMessage(prev => prev + emoji)} />
+            </div>
+            <Button 
+              type="submit" 
+              size="icon"
+              disabled={isLoading || !newMessage.trim()}
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </form>
     </div>
   );
