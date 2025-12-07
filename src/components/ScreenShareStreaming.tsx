@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Monitor, Camera, StopCircle, Video, Eye, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import WebRTCStats from "@/components/WebRTCStats";
+import { useViewerNotifications } from "@/hooks/useViewerNotifications";
 import {
   Select,
   SelectContent,
@@ -32,6 +34,13 @@ const ScreenShareStreaming = ({ channelId, isOwner = true, onStreamStart, onStre
   const streamRef = useRef<MediaStream | null>(null);
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const realtimeChannelRef = useRef<any>(null);
+
+  // Viewer notifications for streamer
+  useViewerNotifications({
+    channelId,
+    isOwner,
+    isStreaming
+  });
 
   useEffect(() => {
     // Get available video devices
@@ -533,6 +542,12 @@ const ScreenShareStreaming = ({ channelId, isOwner = true, onStreamStart, onStre
           </div>
         )}
       </div>
+
+      {/* WebRTC Stats */}
+      <WebRTCStats 
+        peerConnections={peerConnectionsRef.current} 
+        isStreaming={isStreaming} 
+      />
 
       <p className="text-sm text-muted-foreground">
         💡 Зрители увидят вашу трансляцию в реальном времени после запуска

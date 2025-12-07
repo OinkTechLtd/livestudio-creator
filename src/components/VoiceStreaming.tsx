@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Mic, MicOff, Radio, Headphones, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import WebRTCStats from "@/components/WebRTCStats";
+import { useViewerNotifications } from "@/hooks/useViewerNotifications";
 import {
   Select,
   SelectContent,
@@ -33,6 +35,13 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
   const viewerAudioRef = useRef<HTMLAudioElement>(null);
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const realtimeChannelRef = useRef<any>(null);
+
+  // Viewer notifications for streamer
+  useViewerNotifications({
+    channelId,
+    isOwner,
+    isStreaming
+  });
 
   useEffect(() => {
     // Get available audio devices
@@ -555,6 +564,12 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
           </p>
         </div>
       </div>
+
+      {/* WebRTC Stats */}
+      <WebRTCStats 
+        peerConnections={peerConnectionsRef.current} 
+        isStreaming={isStreaming} 
+      />
 
       <p className="text-sm text-muted-foreground">
         💡 Зрители услышат ваш голос в реальном времени после запуска эфира
