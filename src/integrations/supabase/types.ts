@@ -14,6 +14,82 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_content: {
+        Row: {
+          channel_id: string
+          created_at: string
+          duration: number | null
+          file_type: string | null
+          file_url: string
+          id: string
+          is_active: boolean | null
+          title: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          duration?: number | null
+          file_type?: string | null
+          file_url: string
+          id?: string
+          is_active?: boolean | null
+          title: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          duration?: number | null
+          file_type?: string | null
+          file_url?: string
+          id?: string
+          is_active?: boolean | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_content_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ad_settings: {
+        Row: {
+          channel_id: string
+          created_at: string
+          id: string
+          interval_minutes: number
+          is_enabled: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          id?: string
+          interval_minutes?: number
+          is_enabled?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          id?: string
+          interval_minutes?: number
+          is_enabled?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_settings_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: true
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channel_categories: {
         Row: {
           created_at: string | null
@@ -130,6 +206,8 @@ export type Database = {
           current_position: number
           id: string
           is_playing: boolean
+          playlist_order: string[] | null
+          shuffle_mode: boolean | null
           started_at: string
           updated_at: string
         }
@@ -139,6 +217,8 @@ export type Database = {
           current_position?: number
           id?: string
           is_playing?: boolean
+          playlist_order?: string[] | null
+          shuffle_mode?: boolean | null
           started_at?: string
           updated_at?: string
         }
@@ -148,6 +228,8 @@ export type Database = {
           current_position?: number
           id?: string
           is_playing?: boolean
+          playlist_order?: string[] | null
+          shuffle_mode?: boolean | null
           started_at?: string
           updated_at?: string
         }

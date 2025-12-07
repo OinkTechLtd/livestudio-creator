@@ -8,11 +8,26 @@ interface PlaybackState {
   startedAt: string;
 }
 
-export const useSyncedPlayback = (channelId: string, mediaContent: any[], isOwner: boolean) => {
+interface MediaItem {
+  id: string;
+  file_url: string;
+  is_24_7?: boolean;
+  [key: string]: any;
+}
+
+export const useSyncedPlayback = (channelId: string, mediaContent: MediaItem[], isOwner: boolean) => {
   const [playbackState, setPlaybackState] = useState<PlaybackState | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isAdBreak, setIsAdBreak] = useState(false);
+  const [adContent, setAdContent] = useState<any[]>([]);
+  const [adSettings, setAdSettings] = useState<any>(null);
+  const [savedPosition, setSavedPosition] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const lastAdTimeRef = useRef<number>(Date.now());
+
+  // Filter active media content
+  const activeMedia = mediaContent.filter(m => m.is_24_7);
 
   // Fetch initial playback state
   useEffect(() => {
@@ -32,15 +47,26 @@ export const useSyncedPlayback = (channelId: string, mediaContent: any[], isOwne
         });
 
         // Find index of current media
-        if (data.current_media_id && mediaContent.length > 0) {
-          const idx = mediaContent.findIndex((m) => m.id === data.current_media_id);
+        if (data.current_media_id && activeMedia.length > 0) {
+          const idx = activeMedia.findIndex((m) => m.id === data.current_media_id);
           if (idx !== -1) setCurrentIndex(idx);
         }
       }
     };
 
+    const fetchAdData = async () => {
+      const [contentRes, settingsRes] = await Promise.all([
+        supabase.from("ad_content").select("*").eq("channel_id", channelId).eq("is_active", true),
+        supabase.from("ad_settings").select("*").eq("channel_id", channelId).single()
+      ]);
+
+      if (contentRes.data) setAdContent(contentRes.data);
+      if (settingsRes.data) setAdSettings(settingsRes.data);
+    };
+
     if (channelId && mediaContent.length > 0) {
       fetchPlaybackState();
+      fetchAdData();
     }
   }, [channelId, mediaContent]);
 
@@ -66,8 +92,8 @@ export const useSyncedPlayback = (channelId: string, mediaContent: any[], isOwne
             });
 
             // Find index of current media
-            if (payload.new.current_media_id && mediaContent.length > 0) {
-              const idx = mediaContent.findIndex((m: any) => m.id === payload.new.current_media_id);
+            if (payload.new.current_media_id && activeMedia.length > 0) {
+              const idx = activeMedia.findIndex((m: any) => m.id === payload.new.current_media_id);
               if (idx !== -1) setCurrentIndex(idx);
             }
           }
@@ -78,7 +104,30 @@ export const useSyncedPlayback = (channelId: string, mediaContent: any[], isOwne
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [channelId, mediaContent]);
+  }, [channelId, activeMedia]);
+
+  // Check for ad break timing
+  useEffect(() => {
+    if (!adSettings?.is_enabled || adContent.length === 0) return;
+
+    const checkAdBreak = () => {
+      const now = Date.now();
+      const elapsed = (now - lastAdTimeRef.current) / 1000 / 60; // minutes
+
+      if (elapsed >= adSettings.interval_minutes && !isAdBreak) {
+        // Save current position before ad
+        const element = videoRef.current || audioRef.current;
+        if (element) {
+          setSavedPosition(element.currentTime);
+        }
+        setIsAdBreak(true);
+        lastAdTimeRef.current = now;
+      }
+    };
+
+    const interval = setInterval(checkAdBreak, 10000); // Check every 10 seconds
+    return () => clearInterval(interval);
+  }, [adSettings, adContent, isAdBreak]);
 
   // Calculate synced position based on server time
   const getSyncedPosition = useCallback(() => {
@@ -107,21 +156,37 @@ export const useSyncedPlayback = (channelId: string, mediaContent: any[], isOwne
     [channelId, isOwner]
   );
 
-  // Handle media ended - move to next
+  // Handle media ended - move to next in playlist
   const handleMediaEnded = useCallback(async () => {
-    if (!isOwner || mediaContent.length === 0) return;
+    if (activeMedia.length === 0) return;
 
-    const nextIndex = (currentIndex + 1) % mediaContent.length;
-    const nextMedia = mediaContent[nextIndex];
+    // If in ad break, return to main content
+    if (isAdBreak) {
+      setIsAdBreak(false);
+      // Restore saved position
+      const element = videoRef.current || audioRef.current;
+      if (element) {
+        element.currentTime = savedPosition;
+        element.play().catch(() => {});
+      }
+      return;
+    }
 
-    await updatePlaybackState(nextMedia.id, 0, true);
+    // Move to next media in playlist (loop)
+    const nextIndex = (currentIndex + 1) % activeMedia.length;
+    const nextMedia = activeMedia[nextIndex];
+
+    if (isOwner && nextMedia) {
+      await updatePlaybackState(nextMedia.id, 0, true);
+    }
+    
     setCurrentIndex(nextIndex);
-  }, [currentIndex, isOwner, mediaContent, updatePlaybackState]);
+  }, [currentIndex, isOwner, activeMedia, updatePlaybackState, isAdBreak, savedPosition]);
 
   // Sync video/audio element to server time
   const syncMedia = useCallback(
     (element: HTMLVideoElement | HTMLAudioElement | null) => {
-      if (!element || !playbackState) return;
+      if (!element || !playbackState || isAdBreak) return;
 
       const targetPosition = getSyncedPosition();
       const currentTime = element.currentTime;
@@ -136,18 +201,35 @@ export const useSyncedPlayback = (channelId: string, mediaContent: any[], isOwne
         element.play().catch(() => {});
       }
     },
-    [playbackState, getSyncedPosition]
+    [playbackState, getSyncedPosition, isAdBreak]
   );
 
   // Periodic sync (every 10 seconds)
   useEffect(() => {
     const interval = setInterval(() => {
-      if (videoRef.current) syncMedia(videoRef.current);
-      if (audioRef.current) syncMedia(audioRef.current);
+      if (!isAdBreak) {
+        if (videoRef.current) syncMedia(videoRef.current);
+        if (audioRef.current) syncMedia(audioRef.current);
+      }
     }, 10000);
 
     return () => clearInterval(interval);
-  }, [syncMedia]);
+  }, [syncMedia, isAdBreak]);
+
+  // Get current media to play
+  const getCurrentMedia = useCallback(() => {
+    if (isAdBreak && adContent.length > 0) {
+      // Return random ad
+      const randomAd = adContent[Math.floor(Math.random() * adContent.length)];
+      return { url: randomAd.file_url, isAd: true };
+    }
+
+    if (activeMedia.length > 0 && activeMedia[currentIndex]) {
+      return { url: activeMedia[currentIndex].file_url, isAd: false };
+    }
+
+    return null;
+  }, [isAdBreak, adContent, activeMedia, currentIndex]);
 
   return {
     currentIndex,
@@ -159,5 +241,9 @@ export const useSyncedPlayback = (channelId: string, mediaContent: any[], isOwne
     syncMedia,
     videoRef,
     audioRef,
+    isAdBreak,
+    setIsAdBreak,
+    getCurrentMedia,
+    activeMedia,
   };
 };

@@ -36,6 +36,8 @@ import Header from "@/components/Header";
 import FavoriteButton from "@/components/FavoriteButton";
 import RealtimeAnalytics from "@/components/RealtimeAnalytics";
 import ChatSettings from "@/components/ChatSettings";
+import AdManager from "@/components/AdManager";
+import TorrentUploader from "@/components/TorrentUploader";
 import {
   Dialog,
   DialogContent,
@@ -58,6 +60,7 @@ import ChatBot from "@/components/ChatBot";
 import PointsRewardsSystem from "@/components/PointsRewardsSystem";
 import ChannelMemberManager from "@/components/ChannelMemberManager";
 import { useScheduledPlayback } from "@/hooks/useScheduledPlayback";
+import { Film } from "lucide-react";
 
 interface Channel {
   id: string;
@@ -758,6 +761,12 @@ const ChannelView = () => {
                 <span className="hidden md:inline">Голосовой эфир</span>
               </TabsTrigger>
             )}
+            {isOwner && (
+              <TabsTrigger value="ads" className="text-xs md:text-sm">
+                <Film className="w-3 h-3 md:w-4 md:h-4 mr-1" />
+                <span className="hidden md:inline">Реклама</span>
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="player" className="mt-4 md:mt-6">
@@ -993,6 +1002,14 @@ const ChannelView = () => {
             <TabsContent value="members" className="mt-4 md:mt-6">
               <div className="bg-card border border-border rounded-lg p-4 md:p-6">
                 <ChannelMemberManager channelId={channel.id} channelOwnerId={channel.user_id} isOwner={isOwner} />
+              </div>
+            </TabsContent>
+          )}
+
+          {isOwner && (
+            <TabsContent value="ads" className="mt-4 md:mt-6">
+              <div className="bg-card border border-border rounded-lg p-4 md:p-6">
+                <AdManager channelId={channel.id} channelType={channel.channel_type} />
               </div>
             </TabsContent>
           )}
