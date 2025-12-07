@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Trash2, Link, Play, Pause, Clock } from "lucide-react";
+import { Upload, Trash2, Link, Play, Pause, Clock, Shuffle } from "lucide-react";
+import TorrentUploader from "@/components/TorrentUploader";
 import {
   Dialog,
   DialogContent,
@@ -360,6 +361,13 @@ const MediaManager = ({
             </div>
           </DialogContent>
         </Dialog>
+
+        <TorrentUploader 
+          channelId={channelId} 
+          onTorrentParsed={(files) => {
+            console.log("Parsed torrent files:", files);
+          }} 
+        />
       </div>
 
       {/* Media List */}
