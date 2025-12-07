@@ -137,6 +137,41 @@ const ScreenShareStreaming = ({ channelId, isOwner = true, onStreamStart, onStre
 
     peerConnectionsRef.current.set(viewerId, pc);
 
+    // Keep-alive for WebView - prevent connection timeout
+    const keepAliveInterval = setInterval(() => {
+      if (pc.connectionState === 'connected') {
+        signaling.send({
+          type: 'broadcast',
+          event: 'keep-alive',
+          payload: { viewerId, timestamp: Date.now() }
+        });
+      }
+    }, 5000);
+
+    // Handle connection state changes
+    pc.onconnectionstatechange = () => {
+      console.log('Connection state:', pc.connectionState);
+      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+        clearInterval(keepAliveInterval);
+        // Try to reconnect after brief delay
+        setTimeout(() => {
+          if (isLive && !isOwner) {
+            console.log('Attempting reconnection...');
+            cleanup();
+            setupViewerConnection();
+          }
+        }, 2000);
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log('ICE connection state:', pc.iceConnectionState);
+      if (pc.iceConnectionState === 'disconnected') {
+        // ICE restart
+        pc.restartIce();
+      }
+    };
+
     pc.ontrack = (event) => {
       console.log('Received track:', event.track.kind);
       if (viewerVideoRef.current && event.streams[0]) {

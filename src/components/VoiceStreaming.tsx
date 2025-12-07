@@ -145,6 +145,39 @@ const VoiceStreaming = ({ channelId, isOwner = true, onStreamStart, onStreamStop
 
     peerConnectionsRef.current.set(viewerId, pc);
 
+    // Keep-alive for WebView - prevent connection timeout
+    const keepAliveInterval = setInterval(() => {
+      if (pc.connectionState === 'connected') {
+        signaling.send({
+          type: 'broadcast',
+          event: 'keep-alive',
+          payload: { viewerId, timestamp: Date.now() }
+        });
+      }
+    }, 5000);
+
+    // Handle connection state changes
+    pc.onconnectionstatechange = () => {
+      console.log('Voice connection state:', pc.connectionState);
+      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+        clearInterval(keepAliveInterval);
+        setTimeout(() => {
+          if (isLive && !isOwner) {
+            console.log('Attempting voice reconnection...');
+            cleanup();
+            setupViewerConnection();
+          }
+        }, 2000);
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log('Voice ICE state:', pc.iceConnectionState);
+      if (pc.iceConnectionState === 'disconnected') {
+        pc.restartIce();
+      }
+    };
+
     pc.ontrack = (event) => {
       console.log('Received audio track');
       if (viewerAudioRef.current && event.streams[0]) {
