@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Trash2, Link, Play, Pause, Clock, Shuffle } from "lucide-react";
+import { Upload, Link, Play, Shuffle } from "lucide-react";
 import TorrentUploader from "@/components/TorrentUploader";
+import DraggableMediaList from "@/components/DraggableMediaList";
 import {
   Dialog,
   DialogContent,
@@ -271,21 +272,19 @@ const MediaManager = ({
   };
 
   const shufflePlaylist = async () => {
-    // Get current active media
-    const activeMedia = mediaContent.filter(m => m.is_24_7);
-    if (activeMedia.length < 2) {
+    if (mediaContent.length < 2) {
       toast({ title: "Добавьте больше файлов для перемешивания" });
       return;
     }
 
     // Fisher-Yates shuffle
-    const shuffled = [...activeMedia];
+    const shuffled = [...mediaContent];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
 
-    // Update order by updating created_at (simple approach)
+    // Update order by updating created_at
     const now = new Date();
     for (let i = 0; i < shuffled.length; i++) {
       await supabase
@@ -297,6 +296,21 @@ const MediaManager = ({
     fetchMediaContent();
     toast({ title: "Плейлист перемешан" });
   };
+
+  const handleReorder = async (reorderedItems: MediaContent[]) => {
+    // Update order by updating created_at based on new positions
+    const now = new Date();
+    for (let i = 0; i < reorderedItems.length; i++) {
+      await supabase
+        .from("media_content")
+        .update({ created_at: new Date(now.getTime() - i * 1000).toISOString() })
+        .eq("id", reorderedItems[i].id);
+    }
+
+    setMediaContent(reorderedItems);
+    toast({ title: "Порядок обновлён" });
+  };
+
 
   return (
     <div className="space-y-4">
@@ -438,50 +452,12 @@ const MediaManager = ({
               </Button>
             </div>
           </div>
-          {mediaContent.map((media) => (
-            <div
-              key={media.id}
-              className="p-4 border border-border rounded-lg bg-card"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold truncate">{media.title}</p>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                    <span className={media.is_24_7 ? "text-green-500" : ""}>
-                      {media.is_24_7 ? "🟢 В эфире" : "⏸️ Не активен"}
-                    </span>
-                    {media.source_type !== "upload" && (
-                      <span className="text-primary">
-                        {media.source_type === "m3u8" ? "📺 M3U8" : "🔗 URL"}
-                      </span>
-                    )}
-                    {media.start_time && media.end_time && (
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {media.start_time} - {media.end_time}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex gap-2 ml-4">
-                  <Button
-                    variant={media.is_24_7 ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => toggleMedia(media)}
-                  >
-                    {media.is_24_7 ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => deleteMedia(media.id, media.file_url, media.source_type)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          ))}
+          <DraggableMediaList
+            mediaContent={mediaContent}
+            onReorder={handleReorder}
+            onToggle={toggleMedia}
+            onDelete={deleteMedia}
+          />
         </div>
       )}
     </div>

@@ -91,7 +91,30 @@ const AdManager = ({ channelId, channelType }: AdManagerProps) => {
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      if (!user) {
+        toast({
+          title: "Ошибка авторизации",
+          description: "Войдите в аккаунт для загрузки рекламы",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Verify channel ownership
+      const { data: channel, error: channelError } = await supabase
+        .from("channels")
+        .select("user_id")
+        .eq("id", channelId)
+        .single();
+
+      if (channelError || channel?.user_id !== user.id) {
+        toast({
+          title: "Ошибка доступа",
+          description: "Только владелец канала может загружать рекламу",
+          variant: "destructive",
+        });
+        return;
+      }
 
       const fileExt = file.name.split(".").pop();
       const fileName = `ads/${user.id}/${Date.now()}.${fileExt}`;
@@ -116,15 +139,19 @@ const AdManager = ({ channelId, channelType }: AdManagerProps) => {
           is_active: true,
         });
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error("Insert error:", insertError);
+        throw new Error(`Ошибка сохранения: ${insertError.message}`);
+      }
 
       toast({ title: "Рекламный ролик загружен" });
       fetchAdContent();
       e.target.value = "";
     } catch (error: any) {
+      console.error("Ad upload error:", error);
       toast({
-        title: "Ошибка",
-        description: error.message,
+        title: "Ошибка загрузки",
+        description: error.message || "Не удалось загрузить рекламный ролик",
         variant: "destructive",
       });
     } finally {
