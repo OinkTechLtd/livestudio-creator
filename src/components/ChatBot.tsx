@@ -48,6 +48,20 @@ const ChatBot = ({ channelId, isOwner }: ChatBotProps) => {
     };
   }, [channelId, isOwner]);
 
+  // Auto-start bot when owner opens the page and there are active messages
+  useEffect(() => {
+    if (isOwner && user && botMessages.length > 0 && !isBotRunning) {
+      const activeMessages = botMessages.filter(m => m.is_active);
+      if (activeMessages.length > 0) {
+        // Auto-start after a short delay
+        const timeout = setTimeout(() => {
+          startBotSilently();
+        }, 2000);
+        return () => clearTimeout(timeout);
+      }
+    }
+  }, [botMessages, isOwner, user]);
+
   const fetchBotMessages = async () => {
     const { data } = await supabase
       .from("chat_bot_messages")
@@ -74,6 +88,36 @@ const ChatBot = ({ channelId, isOwner }: ChatBotProps) => {
       console.error("Error sending bot message:", error);
     }
   }, [channelId, user]);
+
+  // Silent auto-start (no toast)
+  const startBotSilently = useCallback(() => {
+    if (!user) return;
+
+    // Clear existing intervals
+    intervalsRef.current.forEach(interval => clearInterval(interval));
+    intervalsRef.current.clear();
+
+    const activeMessages = botMessages.filter(m => m.is_active);
+    
+    if (activeMessages.length === 0) return;
+
+    activeMessages.forEach((bot) => {
+      // Send first message after a delay
+      setTimeout(() => {
+        sendBotMessage(bot.message);
+      }, 5000);
+      
+      // Then set interval for subsequent messages
+      const intervalId = setInterval(() => {
+        sendBotMessage(bot.message);
+      }, bot.interval_seconds * 1000);
+
+      intervalsRef.current.set(bot.id, intervalId);
+    });
+
+    setIsBotRunning(true);
+    console.log("Bot auto-started with", activeMessages.length, "active messages");
+  }, [botMessages, sendBotMessage, user]);
 
   const startBot = useCallback(() => {
     if (!user) {

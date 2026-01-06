@@ -8,6 +8,7 @@ import DevToolsBlocker from "@/components/DevToolsBlocker";
 import MobileNavigation from "@/components/MobileNavigation";
 import AppSidebar from "@/components/AppSidebar";
 import SeasonalEffects from "@/components/SeasonalEffects";
+import ThemeSelector from "@/components/ThemeSelector";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import CreateChannel from "./pages/CreateChannel";
@@ -27,6 +28,7 @@ const App = () => (
       <TooltipProvider>
         <DevToolsBlocker />
         <SeasonalEffects />
+        <ThemeSelector />
         <Toaster />
         <Sonner />
         <BrowserRouter>

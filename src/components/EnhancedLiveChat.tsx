@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, Crown, Shield, UserPlus, UserMinus, Pin, Ban, MoreVertical, Bot, Users } from "lucide-react";
+import { Send, Crown, Shield, UserPlus, UserMinus, Pin, Ban, MoreVertical, Bot, Users, Mic, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import ViewerCounter from "@/components/ViewerCounter";
@@ -28,12 +28,12 @@ interface ChatMessage {
     avatar_url: string | null;
   };
   isSystem?: boolean;
+  isDeleted?: boolean;
 }
 
-interface PinnedMessage {
-  id: string;
-  message_id: string;
-  chat_messages: ChatMessage;
+interface ChannelMember {
+  user_id: string;
+  role: string;
 }
 
 interface EnhancedLiveChatProps {
@@ -49,20 +49,24 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [moderators, setModerators] = useState<string[]>([]);
+  const [channelMembers, setChannelMembers] = useState<ChannelMember[]>([]);
   const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
   const [pinnedMessage, setPinnedMessage] = useState<ChatMessage | null>(null);
   const [hasJoined, setHasJoined] = useState(false);
   const [canWrite, setCanWrite] = useState(true);
   const [chatRestrictionMessage, setChatRestrictionMessage] = useState("");
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchMessages();
     fetchModerators();
+    fetchChannelMembers();
     fetchBlockedUsers();
     fetchPinnedMessage();
     fetchChatSettings();
+    fetchDeletedMessages();
     
     const channel = supabase
       .channel(`chat:${channelId}`)
@@ -289,6 +293,29 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
     }
   };
 
+  const fetchChannelMembers = async () => {
+    const { data } = await supabase
+      .from('channel_members')
+      .select('user_id, role')
+      .eq('channel_id', channelId)
+      .eq('status', 'accepted');
+
+    if (data) {
+      setChannelMembers(data);
+    }
+  };
+
+  const fetchDeletedMessages = async () => {
+    const { data } = await supabase
+      .from('deleted_messages')
+      .select('message_id')
+      .eq('channel_id', channelId);
+
+    if (data) {
+      setDeletedMessageIds(new Set(data.map(d => d.message_id)));
+    }
+  };
+
   const fetchBlockedUsers = async () => {
     const { data } = await supabase
       .from('chat_blocked_users')
@@ -460,6 +487,50 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
     }
   };
 
+  // Delete message and ban user for 6000 minutes (moderator action)
+  const deleteMessageAndBan = async (messageId: string, authorId: string, messageContent: string) => {
+    if (!user || !canModerate) return;
+
+    try {
+      // Save deleted message to deleted_messages table
+      await supabase.from('deleted_messages').insert({
+        channel_id: channelId,
+        message_id: messageId,
+        message_content: messageContent,
+        author_id: authorId,
+        deleted_by: user.id,
+      });
+
+      // Delete the message
+      await supabase
+        .from('chat_messages')
+        .delete()
+        .eq('id', messageId);
+
+      // Ban user for 6000 minutes
+      const banExpiresAt = new Date();
+      banExpiresAt.setMinutes(banExpiresAt.getMinutes() + 6000);
+
+      await supabase.from('chat_blocked_users').upsert({
+        channel_id: channelId,
+        user_id: authorId,
+        blocked_by: user.id,
+        ban_expires_at: banExpiresAt.toISOString(),
+        ban_reason: 'Сообщение удалено модератором',
+      });
+
+      // Update local state
+      setDeletedMessageIds(prev => new Set([...prev, messageId]));
+      setBlockedUsers(prev => [...prev, authorId]);
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+
+      toast({ title: "Сообщение удалено, пользователь заблокирован на 6000 минут" });
+    } catch (error) {
+      console.error("Error deleting message:", error);
+      toast({ title: "Ошибка удаления", variant: "destructive" });
+    }
+  };
+
   const pinMessage = async (messageId: string) => {
     if (!user) return;
 
@@ -497,7 +568,9 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
   const isOwner = user?.id === channelOwnerId;
   const isModerator = (userId: string) => moderators.includes(userId);
   const isChannelOwner = (userId: string) => userId === channelOwnerId;
-  const canModerate = isOwner || (user && isModerator(user.id));
+  const isChannelAdmin = (userId: string) => channelMembers.some(m => m.user_id === userId && m.role === 'admin');
+  const isChannelHost = (userId: string) => channelMembers.some(m => m.user_id === userId && m.role === 'host');
+  const canModerate = isOwner || (user && isModerator(user.id)) || (user && isChannelAdmin(user.id));
   const isBot = (message: string) => message.startsWith('🤖');
 
   const getUserBadge = (userId: string, message?: string) => {
@@ -515,6 +588,23 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
         </span>
       );
     }
+    // Channel Admin - Red Shield
+    if (isChannelAdmin(userId)) {
+      return (
+        <span title="Администратор канала">
+          <Shield className="w-4 h-4 text-red-500 inline-block ml-1" />
+        </span>
+      );
+    }
+    // Channel Host - Microphone
+    if (isChannelHost(userId)) {
+      return (
+        <span title="Ведущий канала">
+          <Mic className="w-4 h-4 text-blue-500 inline-block ml-1" />
+        </span>
+      );
+    }
+    // Chat Moderator - Green Shield
     if (isModerator(userId)) {
       return (
         <span title={t("moderator")}>
@@ -528,6 +618,8 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
   const getUsernameColor = (userId: string, isSystem?: boolean) => {
     if (isSystem) return "text-purple-400 font-bold";
     if (isChannelOwner(userId)) return "text-yellow-500 font-bold";
+    if (isChannelAdmin(userId)) return "text-red-500 font-bold";
+    if (isChannelHost(userId)) return "text-blue-500 font-semibold";
     if (isModerator(userId)) return "text-green-500 font-semibold";
     return "font-medium";
   };
@@ -631,6 +723,14 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
                             )}
                           </DropdownMenuItem>
                         )}
+                        {/* Delete message and ban */}
+                        <DropdownMenuItem 
+                          onClick={() => deleteMessageAndBan(msg.id, msg.user_id, msg.message)}
+                          className="text-orange-500"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Удалить и забанить
+                        </DropdownMenuItem>
                         <DropdownMenuItem 
                           onClick={() => toggleBlockUser(msg.user_id)}
                           className="text-destructive"
