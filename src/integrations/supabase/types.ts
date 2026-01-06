@@ -90,6 +90,47 @@ export type Database = {
           },
         ]
       }
+      channel_appeals: {
+        Row: {
+          ai_decision: string | null
+          channel_id: string
+          created_at: string | null
+          id: string
+          reason: string
+          resolved_at: string | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          ai_decision?: string | null
+          channel_id: string
+          created_at?: string | null
+          id?: string
+          reason: string
+          resolved_at?: string | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          ai_decision?: string | null
+          channel_id?: string
+          created_at?: string | null
+          id?: string
+          reason?: string
+          resolved_at?: string | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_appeals_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channel_categories: {
         Row: {
           created_at: string | null
@@ -114,6 +155,7 @@ export type Database = {
       channel_members: {
         Row: {
           channel_id: string
+          chat_color: string | null
           created_at: string
           id: string
           invited_by: string | null
@@ -123,6 +165,7 @@ export type Database = {
         }
         Insert: {
           channel_id: string
+          chat_color?: string | null
           created_at?: string
           id?: string
           invited_by?: string | null
@@ -132,6 +175,7 @@ export type Database = {
         }
         Update: {
           channel_id?: string
+          chat_color?: string | null
           created_at?: string
           id?: string
           invited_by?: string | null
@@ -456,7 +500,10 @@ export type Database = {
           created_at: string
           description: string | null
           donation_url: string | null
+          hidden_at: string | null
+          hidden_reason: string | null
           id: string
+          is_hidden: boolean | null
           is_live: boolean | null
           mux_playback_id: string | null
           stream_key: string | null
@@ -477,7 +524,10 @@ export type Database = {
           created_at?: string
           description?: string | null
           donation_url?: string | null
+          hidden_at?: string | null
+          hidden_reason?: string | null
           id?: string
+          is_hidden?: boolean | null
           is_live?: boolean | null
           mux_playback_id?: string | null
           stream_key?: string | null
@@ -498,7 +548,10 @@ export type Database = {
           created_at?: string
           description?: string | null
           donation_url?: string | null
+          hidden_at?: string | null
+          hidden_reason?: string | null
           id?: string
+          is_hidden?: boolean | null
           is_live?: boolean | null
           mux_playback_id?: string | null
           stream_key?: string | null
@@ -530,6 +583,8 @@ export type Database = {
       }
       chat_blocked_users: {
         Row: {
+          ban_expires_at: string | null
+          ban_reason: string | null
           blocked_by: string
           channel_id: string
           created_at: string
@@ -537,6 +592,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ban_expires_at?: string | null
+          ban_reason?: string | null
           blocked_by: string
           channel_id: string
           created_at?: string
@@ -544,6 +601,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ban_expires_at?: string | null
+          ban_reason?: string | null
           blocked_by?: string
           channel_id?: string
           created_at?: string
@@ -686,6 +745,44 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deleted_messages: {
+        Row: {
+          author_id: string
+          channel_id: string
+          deleted_at: string | null
+          deleted_by: string
+          id: string
+          message_content: string
+          message_id: string
+        }
+        Insert: {
+          author_id: string
+          channel_id: string
+          deleted_at?: string | null
+          deleted_by: string
+          id?: string
+          message_content: string
+          message_id: string
+        }
+        Update: {
+          author_id?: string
+          channel_id?: string
+          deleted_at?: string | null
+          deleted_by?: string
+          id?: string
+          message_content?: string
+          message_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deleted_messages_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
             referencedColumns: ["id"]
           },
         ]
@@ -946,30 +1043,36 @@ export type Database = {
           created_at: string | null
           description: string | null
           id: string
+          is_verified: boolean | null
           reason: string
           reporter_id: string
           status: string | null
           updated_at: string | null
+          verified_at: string | null
         }
         Insert: {
           channel_id: string
           created_at?: string | null
           description?: string | null
           id?: string
+          is_verified?: boolean | null
           reason: string
           reporter_id: string
           status?: string | null
           updated_at?: string | null
+          verified_at?: string | null
         }
         Update: {
           channel_id?: string
           created_at?: string | null
           description?: string | null
           id?: string
+          is_verified?: boolean | null
           reason?: string
           reporter_id?: string
           status?: string | null
           updated_at?: string | null
+          verified_at?: string | null
         }
         Relationships: [
           {
@@ -1066,6 +1169,30 @@ export type Database = {
           },
         ]
       }
+      user_preferences: {
+        Row: {
+          created_at: string | null
+          id: string
+          theme: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          theme?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          theme?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -1093,6 +1220,10 @@ export type Database = {
     }
     Functions: {
       get_user_storage_usage: { Args: { user_uuid: string }; Returns: number }
+      get_verified_reports_count: {
+        Args: { p_channel_id: string; p_days?: number }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
