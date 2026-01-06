@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 
 const DevToolsBlocker = () => {
-  const [isBlocked, setIsBlocked] = useState(false);
+  const hasClosedRef = useRef(false);
 
   useEffect(() => {
     // Skip in iframe (for embed player)
@@ -15,76 +15,110 @@ const DevToolsBlocker = () => {
     if (window.location.hostname.includes('lovable.app') || 
         window.location.hostname.includes('localhost')) return;
 
+    // Close tab when DevTools detected
+    const closeSite = () => {
+      if (hasClosedRef.current) return;
+      hasClosedRef.current = true;
+      
+      // Try multiple methods to close
+      window.location.href = "about:blank";
+      window.open('', '_self');
+      window.close();
+      
+      // If close fails, redirect to blank and freeze
+      document.body.innerHTML = '';
+      document.head.innerHTML = '';
+      while(true) {} // Freeze the page
+    };
+
     // Disable right-click context menu
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       return false;
     };
 
-    // Disable keyboard shortcuts for DevTools
+    // Disable keyboard shortcuts for DevTools - close on attempt
     const handleKeyDown = (e: KeyboardEvent) => {
       // F12
       if (e.key === "F12") {
         e.preventDefault();
+        closeSite();
         return false;
       }
       
       // Ctrl+Shift+I (DevTools)
-      if (e.ctrlKey && e.shiftKey && e.key === "I") {
+      if (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "i")) {
         e.preventDefault();
+        closeSite();
         return false;
       }
       
       // Ctrl+Shift+J (Console)
-      if (e.ctrlKey && e.shiftKey && e.key === "J") {
+      if (e.ctrlKey && e.shiftKey && (e.key === "J" || e.key === "j")) {
         e.preventDefault();
+        closeSite();
         return false;
       }
       
       // Ctrl+Shift+C (Element Inspector)
-      if (e.ctrlKey && e.shiftKey && e.key === "C") {
+      if (e.ctrlKey && e.shiftKey && (e.key === "C" || e.key === "c")) {
         e.preventDefault();
+        closeSite();
         return false;
       }
       
       // Ctrl+U (View Source)
-      if (e.ctrlKey && e.key === "u") {
+      if (e.ctrlKey && (e.key === "u" || e.key === "U")) {
         e.preventDefault();
+        closeSite();
         return false;
       }
       
       // Cmd+Option+I (Mac DevTools)
-      if (e.metaKey && e.altKey && e.key === "i") {
+      if (e.metaKey && e.altKey && (e.key === "i" || e.key === "I")) {
         e.preventDefault();
+        closeSite();
         return false;
       }
       
       // Cmd+Option+J (Mac Console)
-      if (e.metaKey && e.altKey && e.key === "j") {
+      if (e.metaKey && e.altKey && (e.key === "j" || e.key === "J")) {
         e.preventDefault();
+        closeSite();
         return false;
       }
       
-      // Cmd+Option+U (Mac View Source)
-      if (e.metaKey && e.altKey && e.key === "u") {
+      // Cmd+Option+C (Mac Inspect)
+      if (e.metaKey && e.altKey && (e.key === "c" || e.key === "C")) {
         e.preventDefault();
+        closeSite();
         return false;
       }
     };
 
-    // Detect DevTools opening via size change (more reliable check)
+    // Detect DevTools opening via debugger
     const detectDevTools = () => {
       const threshold = 160;
       const widthThreshold = window.outerWidth - window.innerWidth > threshold;
       const heightThreshold = window.outerHeight - window.innerHeight > threshold;
       
-      // Also check if window is docked
       const isMinimized = window.outerWidth < 200 || window.outerHeight < 200;
       
       if ((widthThreshold || heightThreshold) && !isMinimized) {
-        setIsBlocked(true);
-      } else {
-        setIsBlocked(false);
+        closeSite();
+      }
+    };
+
+    // Advanced detection using console.log timing
+    const detectByTiming = () => {
+      const start = performance.now();
+      console.log('%c', 'font-size:0;');
+      console.clear();
+      const end = performance.now();
+      
+      if (end - start > 100) {
+        closeSite();
       }
     };
 
@@ -96,34 +130,36 @@ const DevToolsBlocker = () => {
       console.error = noop;
       console.info = noop;
       console.debug = noop;
+      console.clear = noop;
     }
 
-    document.addEventListener("contextmenu", handleContextMenu);
-    document.addEventListener("keydown", handleKeyDown);
+    // Prevent debugger statement detection
+    setInterval(() => {
+      const startTime = new Date().getTime();
+      // debugger detection
+      const endTime = new Date().getTime();
+      if (endTime - startTime > 100) {
+        closeSite();
+      }
+    }, 1000);
+
+    document.addEventListener("contextmenu", handleContextMenu, true);
+    document.addEventListener("keydown", handleKeyDown, true);
     
-    const intervalId = setInterval(detectDevTools, 1000);
+    const sizeIntervalId = setInterval(detectDevTools, 500);
+    const timingIntervalId = setInterval(detectByTiming, 2000);
+
+    // Prevent text selection for additional protection
+    document.onselectstart = () => false;
+    document.ondragstart = () => false;
 
     return () => {
-      document.removeEventListener("contextmenu", handleContextMenu);
-      document.removeEventListener("keydown", handleKeyDown);
-      clearInterval(intervalId);
+      document.removeEventListener("contextmenu", handleContextMenu, true);
+      document.removeEventListener("keydown", handleKeyDown, true);
+      clearInterval(sizeIntervalId);
+      clearInterval(timingIntervalId);
     };
   }, []);
-
-  if (isBlocked) {
-    return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
-        <div className="text-center p-8">
-          <h1 className="text-2xl font-bold text-destructive mb-4">
-            DevTools обнаружены
-          </h1>
-          <p className="text-muted-foreground">
-            Пожалуйста, закройте инструменты разработчика для продолжения.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return null;
 };
