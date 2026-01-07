@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "react-router-dom";
 import FavoriteChannels from "@/components/FavoriteChannels";
+import ProfileThemeSettings from "@/components/ProfileThemeSettings";
 
 interface Profile {
   id: string;
@@ -351,6 +352,13 @@ const Profile = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Theme Settings for own profile */}
+        {isOwnProfile && (
+          <div className="mb-8">
+            <ProfileThemeSettings />
+          </div>
+        )}
 
         {/* Channels Tabs */}
         <Tabs defaultValue="channels" className="w-full">

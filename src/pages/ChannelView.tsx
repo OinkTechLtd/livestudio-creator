@@ -60,8 +60,10 @@ import DonationButton from "@/components/DonationButton";
 import ChatBot from "@/components/ChatBot";
 import PointsRewardsSystem from "@/components/PointsRewardsSystem";
 import ChannelMemberManager from "@/components/ChannelMemberManager";
+import PremiumSubscriptions from "@/components/PremiumSubscriptions";
+import ChannelRoulette from "@/components/ChannelRoulette";
 import { useScheduledPlayback } from "@/hooks/useScheduledPlayback";
-import { Film, Download } from "lucide-react";
+import { Film, Download, Crown, Dices } from "lucide-react";
 
 interface Channel {
   id: string;
@@ -769,6 +771,14 @@ const ChannelView = () => {
           <TabsList className="flex flex-wrap h-auto gap-1 p-1 mb-4">
             <TabsTrigger value="player" className="text-xs md:text-sm">Плеер</TabsTrigger>
             <TabsTrigger value="schedule" className="text-xs md:text-sm">Расписание</TabsTrigger>
+            <TabsTrigger value="subscriptions" className="text-xs md:text-sm">
+              <Crown className="w-3 h-3 md:w-4 md:h-4 mr-1" />
+              <span className="hidden md:inline">Подписки</span>
+            </TabsTrigger>
+            <TabsTrigger value="roulette" className="text-xs md:text-sm">
+              <Dices className="w-3 h-3 md:w-4 md:h-4 mr-1" />
+              <span className="hidden md:inline">Рулетка</span>
+            </TabsTrigger>
             {isOwner && <TabsTrigger value="media" className="text-xs md:text-sm">Медиа</TabsTrigger>}
             {isOwner && (
               <TabsTrigger value="analytics" className="text-xs md:text-sm">
@@ -1010,6 +1020,18 @@ const ChannelView = () => {
           <TabsContent value="schedule" className="mt-4 md:mt-6">
             <div className="bg-card border border-border rounded-lg p-4 md:p-6">
               <ChannelSchedule channelId={channel.id} isOwner={isOwner} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="subscriptions" className="mt-4 md:mt-6">
+            <div className="bg-card border border-border rounded-lg p-4 md:p-6">
+              <PremiumSubscriptions channelId={channel.id} isOwner={isOwner} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="roulette" className="mt-4 md:mt-6">
+            <div className="bg-card border border-border rounded-lg p-4 md:p-6">
+              <ChannelRoulette channelId={channel.id} isOwner={isOwner} />
             </div>
           </TabsContent>
 

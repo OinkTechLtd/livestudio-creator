@@ -510,6 +510,7 @@ export type Database = {
           streaming_method:
             | Database["public"]["Enums"]["streaming_method"]
             | null
+          subscriber_badge: string | null
           thumbnail_url: string | null
           title: string
           updated_at: string
@@ -534,6 +535,7 @@ export type Database = {
           streaming_method?:
             | Database["public"]["Enums"]["streaming_method"]
             | null
+          subscriber_badge?: string | null
           thumbnail_url?: string | null
           title: string
           updated_at?: string
@@ -558,6 +560,7 @@ export type Database = {
           streaming_method?:
             | Database["public"]["Enums"]["streaming_method"]
             | null
+          subscriber_badge?: string | null
           thumbnail_url?: string | null
           title?: string
           updated_at?: string
@@ -816,6 +819,35 @@ export type Database = {
           },
         ]
       }
+      free_spin_claims: {
+        Row: {
+          channel_id: string
+          claimed_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          claimed_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          claimed_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "free_spin_claims_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       likes: {
         Row: {
           channel_id: string
@@ -952,6 +984,44 @@ export type Database = {
           },
         ]
       }
+      partner_api_keys: {
+        Row: {
+          api_endpoint: string | null
+          api_key: string
+          channel_id: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          partner_name: string
+        }
+        Insert: {
+          api_endpoint?: string | null
+          api_key: string
+          channel_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          partner_name: string
+        }
+        Update: {
+          api_endpoint?: string | null
+          api_key?: string
+          channel_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          partner_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_api_keys_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pinned_messages: {
         Row: {
           channel_id: string
@@ -994,6 +1064,50 @@ export type Database = {
             columns: ["pinned_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      premium_subscriptions: {
+        Row: {
+          badge_emoji: string | null
+          channel_id: string
+          cost: number
+          created_at: string
+          description: string | null
+          duration_days: number
+          id: string
+          is_active: boolean | null
+          title: string
+        }
+        Insert: {
+          badge_emoji?: string | null
+          channel_id: string
+          cost?: number
+          created_at?: string
+          description?: string | null
+          duration_days?: number
+          id?: string
+          is_active?: boolean | null
+          title: string
+        }
+        Update: {
+          badge_emoji?: string | null
+          channel_id?: string
+          cost?: number
+          created_at?: string
+          description?: string | null
+          duration_days?: number
+          id?: string
+          is_active?: boolean | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "premium_subscriptions_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
             referencedColumns: ["id"]
           },
         ]
@@ -1133,6 +1247,101 @@ export type Database = {
           },
         ]
       }
+      roulette_prizes: {
+        Row: {
+          chance_percent: number
+          channel_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          prize_type: string
+          prize_value: string | null
+          title: string
+        }
+        Insert: {
+          chance_percent?: number
+          channel_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          prize_type?: string
+          prize_value?: string | null
+          title: string
+        }
+        Update: {
+          chance_percent?: number
+          channel_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          prize_type?: string
+          prize_value?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roulette_prizes_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roulette_spins: {
+        Row: {
+          channel_id: string
+          cost_points: number
+          id: string
+          prize_id: string | null
+          prize_title: string
+          promocode: string | null
+          spun_at: string
+          user_id: string
+          was_free: boolean | null
+        }
+        Insert: {
+          channel_id: string
+          cost_points?: number
+          id?: string
+          prize_id?: string | null
+          prize_title: string
+          promocode?: string | null
+          spun_at?: string
+          user_id: string
+          was_free?: boolean | null
+        }
+        Update: {
+          channel_id?: string
+          cost_points?: number
+          id?: string
+          prize_id?: string | null
+          prize_title?: string
+          promocode?: string | null
+          spun_at?: string
+          user_id?: string
+          was_free?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roulette_spins_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roulette_spins_prize_id_fkey"
+            columns: ["prize_id"]
+            isOneToOne: false
+            referencedRelation: "roulette_prizes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscriptions: {
         Row: {
           channel_id: string
@@ -1192,6 +1401,54 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_premium_subscriptions: {
+        Row: {
+          channel_id: string
+          expires_at: string
+          granted_by: string | null
+          id: string
+          is_manual_grant: boolean | null
+          purchased_at: string
+          subscription_id: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          expires_at: string
+          granted_by?: string | null
+          id?: string
+          is_manual_grant?: boolean | null
+          purchased_at?: string
+          subscription_id: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          expires_at?: string
+          granted_by?: string | null
+          id?: string
+          is_manual_grant?: boolean | null
+          purchased_at?: string
+          subscription_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_premium_subscriptions_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_premium_subscriptions_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "premium_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
