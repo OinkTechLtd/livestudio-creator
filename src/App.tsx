@@ -18,6 +18,7 @@ import PopoutPlayer from "./pages/PopoutPlayer";
 import Profile from "./pages/Profile";
 import Search from "./pages/Search";
 import Changelog from "./pages/Changelog";
+import ApiDocumentation from "./pages/ApiDocumentation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +45,7 @@ const App = () => (
             <Route path="/profile/:id" element={<Profile />} />
             <Route path="/search" element={<Search />} />
             <Route path="/changelog" element={<Changelog />} />
+            <Route path="/api-docs" element={<ApiDocumentation />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
