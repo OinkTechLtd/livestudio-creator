@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, Crown, Shield, UserPlus, UserMinus, Pin, Ban, MoreVertical, Bot, Users, Mic, Trash2 } from "lucide-react";
+import { Send, Crown, Shield, UserPlus, UserMinus, Pin, Ban, MoreVertical, Bot, Users, Mic, Trash2, Gift, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import ViewerCounter from "@/components/ViewerCounter";
@@ -17,6 +17,19 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface ChatMessage {
   id: string;
@@ -36,6 +49,19 @@ interface ChannelMember {
   role: string;
 }
 
+interface BlockedUser {
+  user_id: string;
+  ban_reason: string | null;
+  ban_expires_at: string | null;
+}
+
+interface PremiumSubscription {
+  id: string;
+  title: string;
+  duration_days: number;
+  badge_emoji: string;
+}
+
 interface EnhancedLiveChatProps {
   channelId: string;
   channelOwnerId?: string;
@@ -50,13 +76,20 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
   const [isLoading, setIsLoading] = useState(false);
   const [moderators, setModerators] = useState<string[]>([]);
   const [channelMembers, setChannelMembers] = useState<ChannelMember[]>([]);
-  const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
+  const [subscriberUserIds, setSubscriberUserIds] = useState<Set<string>>(new Set());
+  const [subscriberBadge, setSubscriberBadge] = useState<string>("⭐");
   const [pinnedMessage, setPinnedMessage] = useState<ChatMessage | null>(null);
   const [hasJoined, setHasJoined] = useState(false);
   const [canWrite, setCanWrite] = useState(true);
   const [chatRestrictionMessage, setChatRestrictionMessage] = useState("");
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(new Set());
+  const [showGrantDialog, setShowGrantDialog] = useState(false);
+  const [grantUserId, setGrantUserId] = useState<string | null>(null);
+  const [grantUsername, setGrantUsername] = useState<string>("");
+  const [availableSubscriptions, setAvailableSubscriptions] = useState<PremiumSubscription[]>([]);
+  const [selectedSubscription, setSelectedSubscription] = useState<string>("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,6 +100,9 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
     fetchPinnedMessage();
     fetchChatSettings();
     fetchDeletedMessages();
+    fetchSubscribers();
+    fetchSubscriberBadge();
+    fetchAvailableSubscriptions();
     
     const channel = supabase
       .channel(`chat:${channelId}`)
@@ -119,6 +155,18 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
           fetchBlockedUsers();
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_premium_subscriptions',
+          filter: `channel_id=eq.${channelId}`
+        },
+        () => {
+          fetchSubscribers();
+        }
+      )
       .subscribe();
 
     return () => {
@@ -126,34 +174,85 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
     };
   }, [channelId]);
 
+  const fetchSubscriberBadge = async () => {
+    const { data } = await supabase
+      .from("channels")
+      .select("subscriber_badge")
+      .eq("id", channelId)
+      .single();
+    
+    if (data?.subscriber_badge) {
+      setSubscriberBadge(data.subscriber_badge);
+    }
+  };
+
+  const fetchSubscribers = async () => {
+    const now = new Date().toISOString();
+    const { data } = await supabase
+      .from("user_premium_subscriptions")
+      .select("user_id")
+      .eq("channel_id", channelId)
+      .gte("expires_at", now);
+
+    if (data) {
+      setSubscriberUserIds(new Set(data.map(s => s.user_id)));
+    }
+  };
+
+  const fetchAvailableSubscriptions = async () => {
+    const { data } = await supabase
+      .from("premium_subscriptions")
+      .select("id, title, duration_days, badge_emoji")
+      .eq("channel_id", channelId)
+      .eq("is_active", true);
+
+    if (data) {
+      setAvailableSubscriptions(data);
+    }
+  };
+
   // Fetch chat settings and check if user can write
   const fetchChatSettings = useCallback(async () => {
-    // Wait for auth to finish loading
-    if (authLoading) {
-      return;
-    }
+    if (authLoading) return;
 
     if (!user) {
-      // Non-logged in users can't write
       setCanWrite(false);
       setChatRestrictionMessage("Войдите для отправки сообщений");
       setSettingsLoaded(true);
       return;
     }
 
-    // First check if user is blocked
+    // Check if user is blocked with proper ban_expires_at handling
     const { data: blockedData } = await supabase
       .from("chat_blocked_users")
-      .select("id")
+      .select("id, ban_expires_at, ban_reason")
       .eq("channel_id", channelId)
       .eq("user_id", user.id)
       .maybeSingle();
 
     if (blockedData) {
-      setCanWrite(false);
-      setChatRestrictionMessage("Вы заблокированы в этом чате");
-      setSettingsLoaded(true);
-      return;
+      const now = new Date();
+      const banExpires = blockedData.ban_expires_at ? new Date(blockedData.ban_expires_at) : null;
+      
+      // Ban is active if ban_expires_at is null (permanent) or in the future
+      if (!banExpires || banExpires > now) {
+        const reason = blockedData.ban_reason || "Без указания причины";
+        const expiresText = banExpires 
+          ? `до ${banExpires.toLocaleDateString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`
+          : "навсегда";
+        
+        setCanWrite(false);
+        setChatRestrictionMessage(`Вы заблокированы ${expiresText}. Причина: ${reason}`);
+        setSettingsLoaded(true);
+        return;
+      }
+      // If ban expired, remove it
+      if (banExpires && banExpires <= now) {
+        await supabase
+          .from("chat_blocked_users")
+          .delete()
+          .eq("id", blockedData.id);
+      }
     }
 
     const { data } = await supabase
@@ -168,7 +267,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
         chat_subscriber_wait_minutes: data.chat_subscriber_wait_minutes || 0,
       };
       
-      // Check if user is channel owner - owners can always write
+      // Check if user is channel owner
       if (user.id === data.user_id || user.id === channelOwnerId) {
         setCanWrite(true);
         setChatRestrictionMessage("");
@@ -176,7 +275,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
         return;
       }
 
-      // Check if user is a moderator - moderators can always write
+      // Check if user is a moderator
       const { data: modData } = await supabase
         .from("channel_moderators")
         .select("id")
@@ -192,7 +291,6 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
       }
       
       if (settings.chat_subscribers_only) {
-        // Check if user is subscribed and for how long
         const { data: subscription } = await supabase
           .from("subscriptions")
           .select("created_at")
@@ -201,7 +299,6 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
           .maybeSingle();
 
         if (!subscription) {
-          // Not subscribed - can't write
           setCanWrite(false);
           setChatRestrictionMessage("Подпишитесь на канал, чтобы писать в чат");
           setSettingsLoaded(true);
@@ -227,18 +324,15 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
     setSettingsLoaded(true);
   }, [user, authLoading, channelId, channelOwnerId]);
 
-  // Re-fetch settings when auth state changes
   useEffect(() => {
     if (!authLoading) {
       fetchChatSettings();
     }
   }, [user, authLoading, fetchChatSettings]);
 
-  // Show welcome message when user joins
   useEffect(() => {
     if (user && !hasJoined) {
       setHasJoined(true);
-      // Add system welcome message locally
       const welcomeMsg: ChatMessage = {
         id: `welcome-${Date.now()}`,
         user_id: 'system',
@@ -319,11 +413,17 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
   const fetchBlockedUsers = async () => {
     const { data } = await supabase
       .from('chat_blocked_users')
-      .select('user_id')
+      .select('user_id, ban_reason, ban_expires_at')
       .eq('channel_id', channelId);
 
     if (data) {
-      setBlockedUsers(data.map(b => b.user_id));
+      // Filter to only include active bans
+      const now = new Date();
+      const activeBlocks = data.filter(b => {
+        if (!b.ban_expires_at) return true; // Permanent ban
+        return new Date(b.ban_expires_at) > now;
+      });
+      setBlockedUsers(activeBlocks);
     }
   };
 
@@ -366,7 +466,8 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
       return;
     }
 
-    if (blockedUsers.includes(user.id)) {
+    const isBlocked = blockedUsers.some(b => b.user_id === user.id);
+    if (isBlocked) {
       toast({
         title: "Вы заблокированы в этом чате",
         variant: "destructive",
@@ -398,7 +499,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
       await supabase
         .from('channel_points')
         .update({
-          points: points.points + 2, // 2 points per message
+          points: points.points + 2,
           messages_sent: points.messages_sent + 1,
         })
         .eq('channel_id', channelId)
@@ -455,12 +556,12 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
     }
   };
 
-  const toggleBlockUser = async (userId: string) => {
+  const toggleBlockUser = async (userId: string, reason?: string, durationMinutes?: number) => {
     if (!user) return;
     
-    const isBlocked = blockedUsers.includes(userId);
+    const blocked = blockedUsers.find(b => b.user_id === userId);
     
-    if (isBlocked) {
+    if (blocked) {
       const { error } = await supabase
         .from('chat_blocked_users')
         .delete()
@@ -468,31 +569,39 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
         .eq('user_id', userId);
 
       if (!error) {
-        setBlockedUsers(prev => prev.filter(id => id !== userId));
+        setBlockedUsers(prev => prev.filter(b => b.user_id !== userId));
         toast({ title: t("unblock") });
       }
     } else {
+      const banExpiresAt = durationMinutes 
+        ? new Date(Date.now() + durationMinutes * 60 * 1000).toISOString()
+        : null;
+
       const { error } = await supabase
         .from('chat_blocked_users')
         .insert({ 
           channel_id: channelId, 
           user_id: userId,
-          blocked_by: user.id
+          blocked_by: user.id,
+          ban_expires_at: banExpiresAt,
+          ban_reason: reason || "Нарушение правил чата",
         });
 
       if (!error) {
-        setBlockedUsers(prev => [...prev, userId]);
+        setBlockedUsers(prev => [...prev, { 
+          user_id: userId, 
+          ban_reason: reason || "Нарушение правил чата",
+          ban_expires_at: banExpiresAt,
+        }]);
         toast({ title: t("block") });
       }
     }
   };
 
-  // Delete message and ban user for 6000 minutes (moderator action)
   const deleteMessageAndBan = async (messageId: string, authorId: string, messageContent: string) => {
     if (!user || !canModerate) return;
 
     try {
-      // Save deleted message to deleted_messages table
       await supabase.from('deleted_messages').insert({
         channel_id: channelId,
         message_id: messageId,
@@ -501,13 +610,11 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
         deleted_by: user.id,
       });
 
-      // Delete the message
       await supabase
         .from('chat_messages')
         .delete()
         .eq('id', messageId);
 
-      // Ban user for 6000 minutes
       const banExpiresAt = new Date();
       banExpiresAt.setMinutes(banExpiresAt.getMinutes() + 6000);
 
@@ -519,9 +626,12 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
         ban_reason: 'Сообщение удалено модератором',
       });
 
-      // Update local state
       setDeletedMessageIds(prev => new Set([...prev, messageId]));
-      setBlockedUsers(prev => [...prev, authorId]);
+      setBlockedUsers(prev => [...prev, { 
+        user_id: authorId, 
+        ban_reason: "Сообщение удалено модератором",
+        ban_expires_at: banExpiresAt.toISOString(),
+      }]);
       setMessages(prev => prev.filter(m => m.id !== messageId));
 
       toast({ title: "Сообщение удалено, пользователь заблокирован на 6000 минут" });
@@ -529,6 +639,52 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
       console.error("Error deleting message:", error);
       toast({ title: "Ошибка удаления", variant: "destructive" });
     }
+  };
+
+  const grantSubscription = async () => {
+    if (!user || !grantUserId || !selectedSubscription) return;
+
+    try {
+      const subscription = availableSubscriptions.find(s => s.id === selectedSubscription);
+      if (!subscription) return;
+
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + subscription.duration_days);
+
+      const { error } = await supabase.from("user_premium_subscriptions").insert({
+        user_id: grantUserId,
+        channel_id: channelId,
+        subscription_id: selectedSubscription,
+        expires_at: expiresAt.toISOString(),
+        granted_by: user.id,
+        is_manual_grant: true,
+      });
+
+      if (error) throw error;
+
+      // Send chat message
+      await supabase.from("chat_messages").insert({
+        channel_id: channelId,
+        user_id: user.id,
+        message: `🎁 ${grantUsername} получил подписку "${subscription.title}" на ${subscription.duration_days} дней!`,
+      });
+
+      toast({ title: "Подписка выдана!" });
+      setShowGrantDialog(false);
+      setGrantUserId(null);
+      setGrantUsername("");
+      setSelectedSubscription("");
+      fetchSubscribers();
+    } catch (error) {
+      console.error("Error granting subscription:", error);
+      toast({ title: "Ошибка выдачи подписки", variant: "destructive" });
+    }
+  };
+
+  const openGrantDialog = (userId: string, username: string) => {
+    setGrantUserId(userId);
+    setGrantUsername(username);
+    setShowGrantDialog(true);
   };
 
   const pinMessage = async (messageId: string) => {
@@ -570,10 +726,13 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
   const isChannelOwner = (userId: string) => userId === channelOwnerId;
   const isChannelAdmin = (userId: string) => channelMembers.some(m => m.user_id === userId && m.role === 'admin');
   const isChannelHost = (userId: string) => channelMembers.some(m => m.user_id === userId && m.role === 'host');
+  const isSubscriber = (userId: string) => subscriberUserIds.has(userId);
   const canModerate = isOwner || (user && isModerator(user.id)) || (user && isChannelAdmin(user.id));
-  const isBot = (message: string) => message.startsWith('🤖');
+  const isUserBlocked = (userId: string) => blockedUsers.some(b => b.user_id === userId);
 
   const getUserBadge = (userId: string, message?: string) => {
+    const badges = [];
+    
     if (message?.startsWith('🤖')) {
       return (
         <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">
@@ -581,38 +740,49 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
         </span>
       );
     }
+    
     if (isChannelOwner(userId)) {
-      return (
-        <span title={t("channel_owner")}>
+      badges.push(
+        <span key="owner" title={t("channel_owner")}>
           <Crown className="w-4 h-4 text-yellow-500 inline-block ml-1" />
         </span>
       );
     }
-    // Channel Admin - Red Shield
+    
     if (isChannelAdmin(userId)) {
-      return (
-        <span title="Администратор канала">
+      badges.push(
+        <span key="admin" title="Администратор канала">
           <Shield className="w-4 h-4 text-red-500 inline-block ml-1" />
         </span>
       );
     }
-    // Channel Host - Microphone
+    
     if (isChannelHost(userId)) {
-      return (
-        <span title="Ведущий канала">
+      badges.push(
+        <span key="host" title="Ведущий канала">
           <Mic className="w-4 h-4 text-blue-500 inline-block ml-1" />
         </span>
       );
     }
-    // Chat Moderator - Green Shield
-    if (isModerator(userId)) {
-      return (
-        <span title={t("moderator")}>
+    
+    if (isModerator(userId) && !isChannelOwner(userId) && !isChannelAdmin(userId)) {
+      badges.push(
+        <span key="mod" title={t("moderator")}>
           <Shield className="w-4 h-4 text-green-500 inline-block ml-1" />
         </span>
       );
     }
-    return null;
+    
+    // Show subscriber badge
+    if (isSubscriber(userId) && !isChannelOwner(userId)) {
+      badges.push(
+        <span key="sub" title="Подписчик" className="ml-1 text-sm">
+          {subscriberBadge}
+        </span>
+      );
+    }
+    
+    return badges.length > 0 ? <>{badges}</> : null;
   };
 
   const getUsernameColor = (userId: string, isSystem?: boolean) => {
@@ -621,7 +791,12 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
     if (isChannelAdmin(userId)) return "text-red-500 font-bold";
     if (isChannelHost(userId)) return "text-blue-500 font-semibold";
     if (isModerator(userId)) return "text-green-500 font-semibold";
+    if (isSubscriber(userId)) return "text-primary font-semibold";
     return "font-medium";
+  };
+
+  const getBlockInfo = (userId: string) => {
+    return blockedUsers.find(b => b.user_id === userId);
   };
 
   return (
@@ -660,92 +835,107 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
 
       <ScrollArea ref={scrollRef} className="flex-1 p-4">
         <div className="space-y-3">
-          {messages.map((msg) => (
-            <div 
-              key={msg.id} 
-              className={`flex gap-2 group hover:bg-muted/30 p-2 rounded-lg transition-colors ${
-                msg.isSystem ? 'bg-purple-500/10 border border-purple-500/20' : ''
-              }`}
-            >
-              <Avatar className="h-8 w-8 flex-shrink-0">
-                {msg.isSystem ? (
-                  <AvatarFallback className="bg-purple-500/20">
-                    <Bot className="w-4 h-4 text-purple-400" />
-                  </AvatarFallback>
-                ) : (
-                  <>
-                    <AvatarImage src={msg.profiles.avatar_url || undefined} />
-                    <AvatarFallback className="text-xs">
-                      {msg.profiles.username.charAt(0).toUpperCase()}
+          {messages.map((msg) => {
+            const blockInfo = getBlockInfo(msg.user_id);
+            
+            return (
+              <div 
+                key={msg.id} 
+                className={`flex gap-2 group hover:bg-muted/30 p-2 rounded-lg transition-colors ${
+                  msg.isSystem ? 'bg-purple-500/10 border border-purple-500/20' : ''
+                } ${blockInfo ? 'opacity-50' : ''}`}
+              >
+                <Avatar className="h-8 w-8 flex-shrink-0">
+                  {msg.isSystem ? (
+                    <AvatarFallback className="bg-purple-500/20">
+                      <Bot className="w-4 h-4 text-purple-400" />
                     </AvatarFallback>
-                  </>
-                )}
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1 flex-wrap">
-                  <span className={`text-sm ${getUsernameColor(msg.user_id, msg.isSystem)}`}>
-                    {msg.profiles.username}
-                  </span>
-                  {getUserBadge(msg.user_id, msg.message)}
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(msg.created_at).toLocaleTimeString('ru-RU', { 
-                      hour: '2-digit', 
-                      minute: '2-digit' 
-                    })}
-                  </span>
-                  
-                  {/* Moderation menu */}
-                  {canModerate && !isChannelOwner(msg.user_id) && !msg.isSystem && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100">
-                          <MoreVertical className="w-3 h-3" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => pinMessage(msg.id)}>
-                          <Pin className="w-4 h-4 mr-2" />
-                          {t("pin")}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {isOwner && (
-                          <DropdownMenuItem onClick={() => toggleModerator(msg.user_id, isModerator(msg.user_id))}>
-                            {isModerator(msg.user_id) ? (
-                              <>
-                                <UserMinus className="w-4 h-4 mr-2" />
-                                {t("remove_moderator")}
-                              </>
-                            ) : (
-                              <>
-                                <UserPlus className="w-4 h-4 mr-2" />
-                                {t("make_moderator")}
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                        )}
-                        {/* Delete message and ban */}
-                        <DropdownMenuItem 
-                          onClick={() => deleteMessageAndBan(msg.id, msg.user_id, msg.message)}
-                          className="text-orange-500"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Удалить и забанить
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          onClick={() => toggleBlockUser(msg.user_id)}
-                          className="text-destructive"
-                        >
-                          <Ban className="w-4 h-4 mr-2" />
-                          {blockedUsers.includes(msg.user_id) ? t("unblock") : t("block")}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                  ) : (
+                    <>
+                      <AvatarImage src={msg.profiles.avatar_url || undefined} />
+                      <AvatarFallback className="text-xs">
+                        {msg.profiles.username.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </>
                   )}
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1 flex-wrap">
+                    <span className={`text-sm ${getUsernameColor(msg.user_id, msg.isSystem)}`}>
+                      {msg.profiles.username}
+                    </span>
+                    {getUserBadge(msg.user_id, msg.message)}
+                    {blockInfo && (
+                      <span className="text-xs text-destructive flex items-center gap-1 ml-1">
+                        <Ban className="w-3 h-3" />
+                        Заблокирован
+                      </span>
+                    )}
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(msg.created_at).toLocaleTimeString('ru-RU', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
+                    </span>
+                    
+                    {/* Moderation menu */}
+                    {canModerate && !isChannelOwner(msg.user_id) && !msg.isSystem && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100">
+                            <MoreVertical className="w-3 h-3" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => pinMessage(msg.id)}>
+                            <Pin className="w-4 h-4 mr-2" />
+                            {t("pin")}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          {isOwner && availableSubscriptions.length > 0 && (
+                            <DropdownMenuItem onClick={() => openGrantDialog(msg.user_id, msg.profiles.username)}>
+                              <Gift className="w-4 h-4 mr-2" />
+                              Выдать подписку
+                            </DropdownMenuItem>
+                          )}
+                          {isOwner && (
+                            <DropdownMenuItem onClick={() => toggleModerator(msg.user_id, isModerator(msg.user_id))}>
+                              {isModerator(msg.user_id) ? (
+                                <>
+                                  <UserMinus className="w-4 h-4 mr-2" />
+                                  {t("remove_moderator")}
+                                </>
+                              ) : (
+                                <>
+                                  <UserPlus className="w-4 h-4 mr-2" />
+                                  {t("make_moderator")}
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem 
+                            onClick={() => deleteMessageAndBan(msg.id, msg.user_id, msg.message)}
+                            className="text-orange-500"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Удалить и забанить
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => toggleBlockUser(msg.user_id)}
+                            className="text-destructive"
+                          >
+                            <Ban className="w-4 h-4 mr-2" />
+                            {isUserBlocked(msg.user_id) ? t("unblock") : t("block")}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                  <p className="text-sm mt-0.5 break-words">{msg.message}</p>
                 </div>
-                <p className="text-sm mt-0.5 break-words">{msg.message}</p>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </ScrollArea>
 
@@ -781,6 +971,43 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
           </div>
         )}
       </form>
+
+      {/* Grant Subscription Dialog */}
+      <Dialog open={showGrantDialog} onOpenChange={setShowGrantDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Gift className="w-5 h-5" />
+              Выдать подписку
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Выдать подписку пользователю <strong>{grantUsername}</strong>:
+            </p>
+            <Select value={selectedSubscription} onValueChange={setSelectedSubscription}>
+              <SelectTrigger>
+                <SelectValue placeholder="Выберите подписку" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableSubscriptions.map((sub) => (
+                  <SelectItem key={sub.id} value={sub.id}>
+                    <div className="flex items-center gap-2">
+                      <span>{sub.badge_emoji}</span>
+                      <span>{sub.title}</span>
+                      <span className="text-muted-foreground">({sub.duration_days} дней)</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={grantSubscription} className="w-full" disabled={!selectedSubscription}>
+              <Gift className="w-4 h-4 mr-2" />
+              Выдать подписку
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
