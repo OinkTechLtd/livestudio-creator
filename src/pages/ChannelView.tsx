@@ -39,6 +39,8 @@ import ChatSettings from "@/components/ChatSettings";
 import AdManager from "@/components/AdManager";
 import TorrentUploader from "@/components/TorrentUploader";
 import VideoProgressBar from "@/components/VideoProgressBar";
+import UniversalPlayer, { SourceType } from "@/components/UniversalPlayer";
+import ChannelProxySettings from "@/components/ChannelProxySettings";
 import {
   Dialog,
   DialogContent,
@@ -59,7 +61,7 @@ import MediaManager from "@/components/MediaManager";
 import DonationButton from "@/components/DonationButton";
 import ChatBot from "@/components/ChatBot";
 import PointsRewardsSystem from "@/components/PointsRewardsSystem";
-import ChannelMemberManager from "@/components/ChannelMemberManager";
+import ChannelMemberManager, { hasPermission } from "@/components/ChannelMemberManager";
 import PremiumSubscriptions from "@/components/PremiumSubscriptions";
 import ChannelRoulette from "@/components/ChannelRoulette";
 import { useScheduledPlayback } from "@/hooks/useScheduledPlayback";
@@ -89,6 +91,7 @@ interface MediaContent {
   scheduled_at: string | null;
   start_time: string | null;
   end_time: string | null;
+  source_type: string | null;
 }
 
 interface PlaybackState {
@@ -113,14 +116,15 @@ const ChannelView = () => {
   const [editedDonationUrl, setEditedDonationUrl] = useState("");
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string>("");
-  const [muxStreamKey, setMuxStreamKey] = useState<string>("");
-  const [muxPlaybackId, setMuxPlaybackId] = useState<string>("");
+  const [restreamUrl, setRestreamUrl] = useState<string>("");
   const [playbackState, setPlaybackState] = useState<PlaybackState | null>(null);
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const [storageUsage, setStorageUsage] = useState(0);
   const [isCheckingStorage, setIsCheckingStorage] = useState(false);
   const [isCreatingStream, setIsCreatingStream] = useState(false);
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [useProxy, setUseProxy] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -141,8 +145,12 @@ const ChannelView = () => {
     fetchPlaybackState();
     if (user) {
       checkStorageUsage();
+      fetchUserRole();
     }
     trackView();
+    // Load proxy setting
+    const savedProxy = localStorage.getItem(`channel_proxy_${id}`);
+    if (savedProxy) setUseProxy(savedProxy === "true");
   }, [id, user]);
 
   // Subscribe to playback state changes for sync
@@ -245,12 +253,25 @@ const ChannelView = () => {
     }
   };
 
+  const fetchUserRole = async () => {
+    if (!user || !id) return;
+    
+    const { data } = await supabase
+      .from("channel_members")
+      .select("role")
+      .eq("channel_id", id)
+      .eq("user_id", user.id)
+      .eq("status", "accepted")
+      .single();
+    
+    if (data) {
+      setUserRole(data.role);
+    }
+  };
+
   useEffect(() => {
     if (channel?.stream_key) {
-      setMuxStreamKey(channel.stream_key);
-    }
-    if (channel?.mux_playback_id) {
-      setMuxPlaybackId(channel.mux_playback_id);
+      setRestreamUrl(channel.stream_key);
     }
   }, [channel]);
 
@@ -476,35 +497,33 @@ const ChannelView = () => {
     window.open(popoutUrl, 'popout', 'width=1200,height=700,menubar=no,toolbar=no,location=no,status=no');
   };
 
-  const createMuxStream = async () => {
+  const createRestreamChannel = async () => {
     if (!channel) return;
 
     setIsCreatingStream(true);
     try {
-      const { data, error } = await supabase.functions.invoke('mux-create-stream', {
-        body: { channelId: channel.id },
+      const { data, error } = await supabase.functions.invoke('restream-create', {
+        body: { channelId: channel.id, title: channel.title },
       });
 
       if (error) throw error;
 
-      setMuxStreamKey(data.streamKey);
-      setMuxPlaybackId(data.playbackId);
+      setRestreamUrl(data.rtmpUrl);
 
       setChannel({
         ...channel,
-        stream_key: data.streamKey,
-        mux_playback_id: data.playbackId,
+        stream_key: data.rtmpUrl,
       });
 
       toast({
         title: "Успешно",
-        description: "Live stream создан! Теперь вы можете стримить через OBS",
+        description: "Restream канал создан! Используйте RTMP URL для стриминга",
       });
     } catch (error: any) {
-      console.error('Error creating stream:', error);
+      console.error('Error creating Restream channel:', error);
       toast({
         title: "Ошибка",
-        description: error.message || "Не удалось создать stream",
+        description: error.message || "Не удалось создать канал Restream",
         variant: "destructive",
       });
     } finally {
@@ -843,8 +862,8 @@ const ChannelView = () => {
                   ) : (
                     <VoiceStreaming channelId={channel.id} isOwner={false} />
                   )
-                ) : channel.streaming_method === "live" && muxPlaybackId ? (
-                  <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
+                ) : channel.streaming_method === "live" && restreamUrl ? (
+                  <div className="aspect-video bg-muted rounded-lg overflow-hidden relative flex items-center justify-center">
                     {channel.thumbnail_url && (
                       <div className="absolute top-4 right-4 z-20">
                         <img 
@@ -858,12 +877,11 @@ const ChannelView = () => {
                       <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
                       LIVE
                     </div>
-                    <iframe
-                      src={`https://stream.mux.com/${muxPlaybackId}.html?autoplay=true`}
-                      style={{ width: '100%', height: '100%', border: 0 }}
-                      allow="autoplay; fullscreen"
-                      allowFullScreen
-                    />
+                    <div className="text-center">
+                      <RadioIcon className="w-16 h-16 text-primary animate-pulse mx-auto mb-4" />
+                      <p className="text-lg font-semibold">{channel.title}</p>
+                      <p className="text-sm text-muted-foreground">Прямая трансляция через Restream</p>
+                    </div>
                   </div>
                 ) : mediaContent.length > 0 ? (
                   <div className="aspect-video bg-muted rounded-lg flex items-center justify-center overflow-hidden relative">
@@ -1058,8 +1076,9 @@ const ChannelView = () => {
 
           {isOwner && (
             <TabsContent value="settings" className="mt-4 md:mt-6">
-              <div className="bg-card border border-border rounded-lg p-4 md:p-6">
+              <div className="bg-card border border-border rounded-lg p-4 md:p-6 space-y-6">
                 <ChatSettings channelId={channel.id} isOwner={isOwner} />
+                <ChannelProxySettings channelId={channel.id} isOwner={isOwner} />
               </div>
             </TabsContent>
           )}
@@ -1100,23 +1119,23 @@ const ChannelView = () => {
             <TabsContent value="obs" className="mt-4 md:mt-6">
               <div className="bg-card border-2 border-border rounded-lg p-4 md:p-6 space-y-6">
                 <div>
-                  <h3 className="text-lg md:text-xl font-bold mb-2">Настройки для OBS Studio</h3>
+                  <h3 className="text-lg md:text-xl font-bold mb-2">Настройки для OBS Studio (через Restream)</h3>
                   <p className="text-sm text-muted-foreground">
-                    Используйте эти данные для настройки live стриминга через OBS
+                    Используйте Restream.io для мультистриминга на разные платформы
                   </p>
                 </div>
 
-                {!muxStreamKey ? (
+                {!restreamUrl ? (
                   <div className="text-center py-8">
                     <p className="text-muted-foreground mb-4">
-                      Создайте live stream для получения настроек RTMP
+                      Создайте канал Restream для получения настроек RTMP
                     </p>
                     <Button 
-                      onClick={createMuxStream} 
+                      onClick={createRestreamChannel} 
                       disabled={isCreatingStream}
                       size="lg"
                     >
-                      {isCreatingStream ? "Создание..." : "Создать Live Stream"}
+                      {isCreatingStream ? "Создание..." : "Создать Restream канал"}
                     </Button>
                   </div>
                 ) : (
@@ -1124,41 +1143,22 @@ const ChannelView = () => {
                     <div className="bg-muted/50 p-4 rounded-lg space-y-4">
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <Label className="text-sm md:text-base font-semibold">RTMP Server URL:</Label>
+                          <Label className="text-sm md:text-base font-semibold">Restream RTMP URL:</Label>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => copyToClipboard("rtmp://global-live.mux.com:5222/app", "RTMP URL")}
+                            onClick={() => copyToClipboard(restreamUrl, "RTMP URL")}
                           >
                             Копировать
                           </Button>
                         </div>
                         <Input
-                          value="rtmp://global-live.mux.com:5222/app"
+                          value={restreamUrl}
                           readOnly
                           className="font-mono text-sm bg-background"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="text-sm md:text-base font-semibold">Stream Key:</Label>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => copyToClipboard(muxStreamKey, "Stream Key")}
-                          >
-                            Копировать
-                          </Button>
-                        </div>
-                        <Input
-                          value={muxStreamKey}
-                          readOnly
-                          className="font-mono text-sm bg-background"
-                          type="password"
                         />
                         <p className="text-xs text-muted-foreground">
-                          ⚠️ Не делитесь Stream Key с другими людьми
+                          ⚠️ Не делитесь RTMP URL с другими людьми
                         </p>
                       </div>
                     </div>
@@ -1169,15 +1169,16 @@ const ChannelView = () => {
                         <li>Откройте OBS Studio</li>
                         <li>Перейдите в Settings → Stream</li>
                         <li>Выберите "Custom" в Service</li>
-                        <li>Вставьте RTMP Server URL в поле "Server"</li>
-                        <li>Вставьте Stream Key в поле "Stream Key"</li>
+                        <li>Вставьте RTMP URL в поле "Server"</li>
+                        <li>Оставьте Stream Key пустым (он включен в URL)</li>
                         <li>Нажмите "OK" и начните стриминг</li>
                       </ol>
                     </div>
 
                     <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
                       <p className="text-sm">
-                        <strong>Статус:</strong> Stream готов к использованию.
+                        <strong>Статус:</strong> Restream канал готов к использованию.
+                        Ваш поток будет автоматически транслироваться на подключенные платформы.
                       </p>
                     </div>
                   </div>

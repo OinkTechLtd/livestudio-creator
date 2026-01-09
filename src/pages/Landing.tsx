@@ -70,7 +70,7 @@ const Landing = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" className="gap-2" onClick={() => navigate("/")}>
+              <Button size="lg" className="gap-2" onClick={() => navigate("/browse")}>
                 <Play className="w-5 h-5" />
                 Открыть платформу
               </Button>
@@ -134,7 +134,7 @@ const Landing = () => {
       <div className="container mx-auto px-4 py-16">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-3xl font-bold">Популярные каналы</h2>
-          <Button variant="outline" onClick={() => navigate("/")}>
+          <Button variant="outline" onClick={() => navigate("/browse")}>
             Все каналы
           </Button>
         </div>
