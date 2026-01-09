@@ -54,7 +54,7 @@ const MediaManager = ({
   
   const [urlTitle, setUrlTitle] = useState("");
   const [externalUrl, setExternalUrl] = useState("");
-  const [sourceType, setSourceType] = useState<"external_url" | "m3u8">("external_url");
+  const [sourceType, setSourceType] = useState<"youtube" | "mp4" | "m3u8" | "ultra_aggregator">("mp4");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
 
@@ -166,13 +166,19 @@ const MediaManager = ({
     }
 
     try {
+      // Determine file_type based on source
+      let fileType = "video/mp4";
+      if (sourceType === "m3u8") fileType = "application/x-mpegURL";
+      else if (sourceType === "youtube") fileType = "video/youtube";
+      else if (sourceType === "ultra_aggregator") fileType = "text/html";
+
       const { error } = await supabase
         .from("media_content")
         .insert({
           channel_id: channelId,
           title: urlTitle,
           file_url: externalUrl,
-          file_type: sourceType === "m3u8" ? "application/x-mpegURL" : "video/mp4",
+          file_type: fileType,
           is_24_7: false,
           source_type: sourceType,
           source_url: externalUrl,
@@ -376,19 +382,31 @@ const MediaManager = ({
                 <Label>Тип источника</Label>
                 <select
                   value={sourceType}
-                  onChange={(e) => setSourceType(e.target.value as "external_url" | "m3u8")}
+                  onChange={(e) => setSourceType(e.target.value as "youtube" | "mp4" | "m3u8" | "ultra_aggregator")}
                   className="w-full p-2 border rounded-md bg-background"
                 >
-                  <option value="external_url">Прямая ссылка (MP4/MP3)</option>
+                  <option value="mp4">MP4/MP3 (прямая ссылка)</option>
                   <option value="m3u8">M3U8 ретрансляция</option>
+                  <option value="youtube">YouTube видео</option>
+                  <option value="ultra_aggregator">Ultra Aggregator</option>
                 </select>
+                {sourceType === "ultra_aggregator" && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Для Ultra Aggregator используйте параметр ?watch=ДОМЕН
+                  </p>
+                )}
               </div>
               <div>
                 <Label>URL</Label>
                 <Input
                   value={externalUrl}
                   onChange={(e) => setExternalUrl(e.target.value)}
-                  placeholder={sourceType === "m3u8" ? "https://...m3u8" : "https://...mp4"}
+                  placeholder={
+                    sourceType === "m3u8" ? "https://...m3u8" : 
+                    sourceType === "youtube" ? "https://youtube.com/watch?v=..." :
+                    sourceType === "ultra_aggregator" ? "ultra_aggregator?watch=example.com" :
+                    "https://...mp4"
+                  }
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">

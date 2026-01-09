@@ -62,6 +62,19 @@ const roleColors = {
   host: "text-green-500",
 };
 
+// Role permissions - admin has full access, host can only start streams
+export const rolePermissions = {
+  owner: ["all"],
+  admin: ["all"], // Full access like owner
+  host: ["start_stream", "stop_stream", "view_chat", "send_chat"], // Limited to streaming only
+};
+
+export const hasPermission = (role: string, permission: string): boolean => {
+  const perms = rolePermissions[role as keyof typeof rolePermissions];
+  if (!perms) return false;
+  return perms.includes("all") || perms.includes(permission);
+};
+
 const ChannelMemberManager = ({ channelId, channelOwnerId, isOwner }: ChannelMemberManagerProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -246,8 +259,8 @@ const ChannelMemberManager = ({ channelId, channelOwnerId, isOwner }: ChannelMem
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Администратор - полный доступ к управлению каналом<br />
-                Ведущий - может только запускать трансляции
+                <strong>Администратор</strong> — полный доступ как у владельца (настройки, медиа, аналитика, команда)<br />
+                <strong>Ведущий</strong> — может только запускать/останавливать трансляции
               </p>
             </div>
             <Button onClick={inviteMember} disabled={isSearching} className="w-full">

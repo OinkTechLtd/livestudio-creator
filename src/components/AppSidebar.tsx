@@ -16,9 +16,9 @@ const AppSidebar = () => {
 
   const menuItems = [
     { icon: Home, label: t("main"), path: "/" },
-    { icon: TrendingUp, label: t("trending") || "Популярные", path: "/?tab=trending" },
-    { icon: Tv, label: t("tv"), path: "/?tab=tv" },
-    { icon: Radio, label: t("radio"), path: "/?tab=radio" },
+    { icon: TrendingUp, label: t("trending") || "Популярные", path: "/browse?tab=trending" },
+    { icon: Tv, label: t("tv"), path: "/browse?tab=tv" },
+    { icon: Radio, label: t("radio"), path: "/browse?tab=radio" },
     { icon: Search, label: t("search"), path: "/search" },
   ];
 

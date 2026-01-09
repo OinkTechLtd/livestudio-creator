@@ -19,6 +19,7 @@ import Profile from "./pages/Profile";
 import Search from "./pages/Search";
 import Changelog from "./pages/Changelog";
 import ApiDocumentation from "./pages/ApiDocumentation";
+import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,7 +36,8 @@ const App = () => (
         <BrowserRouter>
           <AppSidebar />
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<Landing />} />
+            <Route path="/browse" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/create-channel" element={<CreateChannel />} />
             <Route path="/channel/:id" element={<ChannelView />} />
