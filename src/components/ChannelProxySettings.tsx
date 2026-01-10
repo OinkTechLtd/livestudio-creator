@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -8,46 +7,39 @@ import { Shield, AlertTriangle, Wifi } from "lucide-react";
 
 interface ChannelProxySettingsProps {
   channelId: string;
-  isOwner: boolean;
+  canManage: boolean;
 }
 
-const ChannelProxySettings = ({ channelId, isOwner }: ChannelProxySettingsProps) => {
+const ChannelProxySettings = ({ channelId, canManage }: ChannelProxySettingsProps) => {
   const { toast } = useToast();
   const [useProxy, setUseProxy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetchSettings();
+    // Пока без колонки в БД: храним настройку локально
+    const saved = localStorage.getItem(`channel_proxy_${channelId}`);
+    if (saved) setUseProxy(saved === "true");
+    setLoading(false);
   }, [channelId]);
 
-  const fetchSettings = async () => {
-    // For now, store in localStorage since we don't have a DB column
-    const saved = localStorage.getItem(`channel_proxy_${channelId}`);
-    if (saved) {
-      setUseProxy(saved === "true");
-    }
-    setLoading(false);
-  };
-
   const toggleProxy = async () => {
-    if (!isOwner) return;
-    
+    if (!canManage) return;
+
     setSaving(true);
     const newValue = !useProxy;
-    
+
     try {
-      // Store in localStorage for now
       localStorage.setItem(`channel_proxy_${channelId}`, String(newValue));
       setUseProxy(newValue);
-      
+
       toast({
         title: newValue ? "Прокси включено" : "Прокси отключено",
-        description: newValue 
-          ? "Все источники будут загружаться через StreamLiveTV Proxy" 
-          : "Прямое подключение к источникам",
+        description: newValue
+          ? "Источники будут загружаться через проксирование."
+          : "Источники будут загружаться напрямую.",
       });
-    } catch (error) {
+    } catch {
       toast({
         title: "Ошибка",
         description: "Не удалось сохранить настройки",
@@ -58,13 +50,13 @@ const ChannelProxySettings = ({ channelId, isOwner }: ChannelProxySettingsProps)
     }
   };
 
-  if (!isOwner) return null;
+  if (!canManage) return null;
 
   return (
-    <Card className="border-orange-500/20">
+    <Card className="border-accent/20">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
-          <Shield className="w-5 h-5 text-orange-500" />
+          <Shield className="w-5 h-5 text-accent" />
           VPN-прокси для источников
         </CardTitle>
       </CardHeader>
@@ -75,7 +67,7 @@ const ChannelProxySettings = ({ channelId, isOwner }: ChannelProxySettingsProps)
               Использовать проксирование
             </Label>
             <p className="text-xs text-muted-foreground">
-              Все источники будут загружаться через StreamLiveTV Proxy Server
+              Если включено — источники будут запрашиваться через прокси-слой (может помочь при CORS/блокировках).
             </p>
           </div>
           <Switch
@@ -88,24 +80,21 @@ const ChannelProxySettings = ({ channelId, isOwner }: ChannelProxySettingsProps)
 
         {useProxy && (
           <div className="space-y-3">
-            <div className="flex items-start gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-              <Wifi className="w-4 h-4 text-green-500 mt-0.5" />
+            <div className="flex items-start gap-2 p-3 bg-secondary/10 border border-secondary/20 rounded-lg">
+              <Wifi className="w-4 h-4 text-secondary mt-0.5" />
               <div className="text-xs">
-                <p className="font-medium text-green-500">Прокси активен</p>
-                <p className="text-muted-foreground">
-                  Источники кешируются для повышения производительности
-                </p>
+                <p className="font-medium text-secondary">Прокси активен</p>
+                <p className="text-muted-foreground">Источники могут кешироваться для повышения стабильности.</p>
               </div>
             </div>
 
-            <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-              <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5" />
+            <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+              <AlertTriangle className="w-4 h-4 text-destructive mt-0.5" />
               <div className="text-xs">
-                <p className="font-medium text-yellow-500">Юридическое уведомление</p>
+                <p className="font-medium text-destructive">Юридическое уведомление</p>
                 <p className="text-muted-foreground">
-                  Использование прокси для обхода географических ограничений может нарушать 
-                  условия использования некоторых сервисов. Убедитесь, что вы имеете право 
-                  на доступ к контенту.
+                  Использование прокси для обхода географических ограничений может нарушать условия сервисов.
+                  Убедитесь, что у вас есть право на доступ к контенту.
                 </p>
               </div>
             </div>
@@ -117,3 +106,4 @@ const ChannelProxySettings = ({ channelId, isOwner }: ChannelProxySettingsProps)
 };
 
 export default ChannelProxySettings;
+

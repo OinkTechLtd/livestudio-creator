@@ -30,7 +30,11 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
     if (authError || !user) {
       throw new Error("Unauthorized");
     }
@@ -55,7 +59,7 @@ serve(async (req) => {
       throw new Error("Not channel owner");
     }
 
-    // Get Restream access token using client credentials
+    // OAuth: client_credentials
     const tokenResponse = await fetch("https://api.restream.io/oauth/token", {
       method: "POST",
       headers: {
@@ -77,7 +81,7 @@ serve(async (req) => {
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
 
-    // Get Restream ingest info
+    // Get ingest info (server + key)
     const ingestResponse = await fetch("https://api.restream.io/v2/user/ingest", {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -85,22 +89,22 @@ serve(async (req) => {
     });
 
     if (!ingestResponse.ok) {
+      const errorText = await ingestResponse.text();
+      console.error("Restream ingest error:", errorText);
       throw new Error("Failed to get Restream ingest info");
     }
 
     const ingestData = await ingestResponse.json();
 
-    // Generate a unique stream key for this channel
-    const streamKey = `${channelId}_${Date.now()}`;
-    const rtmpUrl = ingestData.rtmp?.url || "rtmp://live.restream.io/live";
-    const fullStreamKey = ingestData.rtmp?.key || streamKey;
+    const rtmpServer = ingestData?.rtmp?.url || "rtmp://live.restream.io/live";
+    const streamKey = ingestData?.rtmp?.key || `${channelId}_${Date.now()}`;
 
-    // Update channel with Restream credentials
+    // Store server in mux_playback_id (Mux removed; this field is repurposed)
     const { error: updateError } = await supabase
       .from("channels")
       .update({
-        stream_key: fullStreamKey,
-        mux_playback_id: null, // Clear Mux playback ID
+        mux_playback_id: rtmpServer,
+        stream_key: streamKey,
         streaming_method: "live",
       })
       .eq("id", channelId);
@@ -112,22 +116,20 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        rtmpUrl,
-        streamKey: fullStreamKey,
-        message: "Restream credentials created successfully",
+        rtmpServer,
+        streamKey,
+        fullRtmpUrl: `${rtmpServer}/${streamKey}`,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   } catch (error: any) {
     console.error("Error:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
+
