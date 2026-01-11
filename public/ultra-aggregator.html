@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ultra Aggregator</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background: #0a0a0a;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      padding: 1rem;
+      text-align: center;
+      border-bottom: 1px solid #333;
+    }
+    .header h1 {
+      font-size: 1.5rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .search-container {
+      padding: 1rem;
+      background: #111;
+    }
+    .search-box {
+      display: flex;
+      gap: 0.5rem;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .search-input {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: #1a1a1a;
+      color: #fff;
+      font-size: 1rem;
+    }
+    .search-input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .search-btn {
+      padding: 0.75rem 1.5rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .search-btn:hover {
+      opacity: 0.9;
+    }
+    .player-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    .player-wrapper {
+      width: 100%;
+      max-width: 1200px;
+      aspect-ratio: 16/9;
+      background: #111;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+    }
+    .player-wrapper iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    .placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: #666;
+    }
+    .placeholder-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+    .sources-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 0.75rem;
+      padding: 1rem;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .source-btn {
+      padding: 0.5rem 1rem;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.875rem;
+    }
+    .source-btn:hover {
+      background: #333;
+      border-color: #667eea;
+    }
+    .source-btn.active {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-color: transparent;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🎬 Ultra Aggregator</h1>
+  </div>
+  
+  <div class="search-container">
+    <div class="search-box">
+      <input 
+        type="text" 
+        class="search-input" 
+        id="searchInput" 
+        placeholder="Введите домен или название для поиска..."
+      />
+      <button class="search-btn" onclick="search()">Найти</button>
+    </div>
+  </div>
+
+  <div class="sources-list" id="sourcesList">
+    <button class="source-btn" data-source="hdrezka">HDRezka</button>
+    <button class="source-btn" data-source="kinogo">Kinogo</button>
+    <button class="source-btn" data-source="filmix">Filmix</button>
+    <button class="source-btn" data-source="lordfilm">LordFilm</button>
+    <button class="source-btn" data-source="seasonvar">Seasonvar</button>
+    <button class="source-btn" data-source="kinokrad">Kinokrad</button>
+  </div>
+
+  <div class="player-container">
+    <div class="player-wrapper" id="playerWrapper">
+      <div class="placeholder" id="placeholder">
+        <div class="placeholder-icon">🎬</div>
+        <p>Введите запрос или выберите источник</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const playerWrapper = document.getElementById('playerWrapper');
+    const placeholder = document.getElementById('placeholder');
+    const searchInput = document.getElementById('searchInput');
+    const sourceButtons = document.querySelectorAll('.source-btn');
+
+    // Check URL params on load
+    const urlParams = new URLSearchParams(window.location.search);
+    const watchParam = urlParams.get('watch');
+    if (watchParam) {
+      searchInput.value = watchParam;
+      search();
+    }
+
+    function search() {
+      const query = searchInput.value.trim();
+      if (!query) return;
+
+      // Try to detect if it's a direct URL
+      let embedUrl;
+      if (query.includes('http://') || query.includes('https://')) {
+        embedUrl = query;
+      } else if (query.includes('.')) {
+        // Looks like a domain
+        embedUrl = `https://${query}`;
+      } else {
+        // Search query - use a search aggregator
+        embedUrl = `https://www.google.com/search?q=${encodeURIComponent(query + ' смотреть онлайн')}&igu=1`;
+      }
+
+      loadPlayer(embedUrl);
+    }
+
+    function loadPlayer(url) {
+      placeholder.style.display = 'none';
+      
+      const existingIframe = playerWrapper.querySelector('iframe');
+      if (existingIframe) {
+        existingIframe.remove();
+      }
+
+      const iframe = document.createElement('iframe');
+      iframe.src = url;
+      iframe.allow = 'fullscreen; autoplay; encrypted-media';
+      iframe.allowFullscreen = true;
+      iframe.sandbox = 'allow-scripts allow-same-origin allow-popups allow-forms';
+      
+      playerWrapper.appendChild(iframe);
+    }
+
+    sourceButtons.forEach(btn => {
+      btn.addEventListener('click', function() {
+        sourceButtons.forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        const source = this.dataset.source;
+        const urls = {
+          hdrezka: 'https://hdrezka.ag',
+          kinogo: 'https://kinogo.inc',
+          filmix: 'https://filmix.fm',
+          lordfilm: 'https://lordfilm.gg',
+          seasonvar: 'https://seasonvar.ru',
+          kinokrad: 'https://kinokrad.co'
+        };
+        
+        if (urls[source]) {
+          loadPlayer(urls[source]);
+        }
+      });
+    });
+
+    searchInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        search();
+      }
+    });
+  </script>
+</body>
+</html>

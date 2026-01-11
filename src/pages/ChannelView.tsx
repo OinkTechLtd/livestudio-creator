@@ -506,24 +506,36 @@ const ChannelView = () => {
         body: { channelId: channel.id, title: channel.title },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Restream edge function error:', error);
+        throw new Error(error.message || 'Edge function failed');
+      }
 
-      setRestreamUrl(data.rtmpUrl);
+      if (data?.error) {
+        console.error('Restream API error:', data.error);
+        throw new Error(data.error);
+      }
+
+      const rtmpServer = data.rtmpServer || 'rtmp://live.restream.io/live';
+      const streamKey = data.streamKey || '';
+
+      setRestreamUrl(`${rtmpServer}/${streamKey}`);
 
       setChannel({
         ...channel,
-        stream_key: data.rtmpUrl,
+        mux_playback_id: rtmpServer,
+        stream_key: streamKey,
       });
 
       toast({
         title: "Успешно",
-        description: "Restream канал создан! Используйте RTMP URL для стриминга",
+        description: "Restream настроен! Используйте данные ниже в OBS",
       });
     } catch (error: any) {
       console.error('Error creating Restream channel:', error);
       toast({
-        title: "Ошибка",
-        description: error.message || "Не удалось создать канал Restream",
+        title: "Ошибка Restream",
+        description: error.message || "Не удалось создать канал Restream. Проверьте API ключи.",
         variant: "destructive",
       });
     } finally {
@@ -1078,7 +1090,7 @@ const ChannelView = () => {
             <TabsContent value="settings" className="mt-4 md:mt-6">
               <div className="bg-card border border-border rounded-lg p-4 md:p-6 space-y-6">
                 <ChatSettings channelId={channel.id} isOwner={isOwner} />
-                <ChannelProxySettings channelId={channel.id} isOwner={isOwner} />
+                <ChannelProxySettings channelId={channel.id} canManage={isOwner} />
               </div>
             </TabsContent>
           )}
@@ -1125,7 +1137,7 @@ const ChannelView = () => {
                   </p>
                 </div>
 
-                {!restreamUrl ? (
+                {!channel.mux_playback_id && !channel.stream_key ? (
                   <div className="text-center py-8">
                     <p className="text-muted-foreground mb-4">
                       Создайте канал Restream для получения настроек RTMP
@@ -1141,24 +1153,45 @@ const ChannelView = () => {
                 ) : (
                   <div className="space-y-4">
                     <div className="bg-muted/50 p-4 rounded-lg space-y-4">
+                      {/* RTMP Server */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <Label className="text-sm md:text-base font-semibold">Restream RTMP URL:</Label>
+                          <Label className="text-sm md:text-base font-semibold">RTMP Server:</Label>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => copyToClipboard(restreamUrl, "RTMP URL")}
+                            onClick={() => copyToClipboard(channel.mux_playback_id || 'rtmp://live.restream.io/live', "RTMP Server")}
                           >
                             Копировать
                           </Button>
                         </div>
                         <Input
-                          value={restreamUrl}
+                          value={channel.mux_playback_id || 'rtmp://live.restream.io/live'}
                           readOnly
                           className="font-mono text-sm bg-background"
                         />
+                      </div>
+
+                      {/* Stream Key */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm md:text-base font-semibold">Stream Key:</Label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(channel.stream_key || '', "Stream Key")}
+                          >
+                            Копировать
+                          </Button>
+                        </div>
+                        <Input
+                          value={channel.stream_key || ''}
+                          readOnly
+                          className="font-mono text-sm bg-background"
+                          type="password"
+                        />
                         <p className="text-xs text-muted-foreground">
-                          ⚠️ Не делитесь RTMP URL с другими людьми
+                          ⚠️ Не делитесь Stream Key с другими людьми
                         </p>
                       </div>
                     </div>
@@ -1168,10 +1201,11 @@ const ChannelView = () => {
                       <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
                         <li>Откройте OBS Studio</li>
                         <li>Перейдите в Settings → Stream</li>
-                        <li>Выберите "Custom" в Service</li>
-                        <li>Вставьте RTMP URL в поле "Server"</li>
-                        <li>Оставьте Stream Key пустым (он включен в URL)</li>
-                        <li>Нажмите "OK" и начните стриминг</li>
+                        <li>Выберите "Restream.io" в Service (или "Custom")</li>
+                        <li>Вставьте <strong>Server</strong> в поле "Server"</li>
+                        <li>Вставьте <strong>Stream Key</strong> в поле "Stream Key"</li>
+                        <li>Нажмите "Apply" и "OK"</li>
+                        <li>Нажмите "Start Streaming"</li>
                       </ol>
                     </div>
 
@@ -1181,6 +1215,15 @@ const ChannelView = () => {
                         Ваш поток будет автоматически транслироваться на подключенные платформы.
                       </p>
                     </div>
+
+                    <Button 
+                      onClick={createRestreamChannel} 
+                      disabled={isCreatingStream}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      {isCreatingStream ? "Обновление..." : "Обновить ключи Restream"}
+                    </Button>
                   </div>
                 )}
               </div>
