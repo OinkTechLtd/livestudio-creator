@@ -11,6 +11,22 @@ import { Link } from "react-router-dom";
 const Changelog = () => {
   const updates = [
     {
+      version: "2.0.1",
+      date: "Январь 2026",
+      title: "StreamLiveTV 2.0.1: Twitch/YouTube Live, AI Модерация, Торренты",
+      description: "Исправления и улучшения: поддержка Twitch/YouTube Live, AI модерация каналов, улучшенный прокси.",
+      features: [
+        { icon: Tv, text: "Twitch / YouTube Live — прямой RTMP стриминг через OBS" },
+        { icon: Shield, text: "AI модерация каналов (Lovable AI) — автоматический анализ жалоб" },
+        { icon: Globe, text: "Улучшенный VPN-прокси с CORS fallback серверами" },
+        { icon: Play, text: "YouTube плеер — стандартный iframe embed для максимальной совместимости" },
+        { icon: Layers, text: "Ultra Aggregator — исправлен рендер как iframe (не видео-плеер)" },
+        { icon: Video, text: "Торрент загрузчик — парсинг .torrent файлов и добавление в библиотеку" },
+        { icon: Settings, text: "OBS настройки — выбор платформы (Restream/Twitch/YouTube)" },
+        { icon: Code, text: "Исправлены ошибки edge-функций Restream и proxy-stream" },
+      ],
+    },
+    {
       version: "2.0.0",
       date: "Январь 2026",
       title: "StreamLiveTV 2.0: Мультисорс, Restream, VPN-прокси, Расширенные роли",

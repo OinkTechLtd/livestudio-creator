@@ -1,17 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import Hls from "hls.js";
-import { AlertCircle, ExternalLink, Radio, RefreshCw } from "lucide-react";
+import { AlertCircle, ExternalLink, Radio, RefreshCw, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 
 const ULTRA_AGGREGATOR_URLS = [
-  "/ultra-aggregator.html", // Local fallback first
+  "/ultra-aggregator.html",
   "https://raw.githack.com/OinkTechLtd/Services-OinkPlatforms/main/video_aggregator%20(2)%20—%20копия%20—%20копия.html",
   "https://html-preview.github.io/?url=https://github.com/OinkTechLtd/Services-OinkPlatforms/blob/main/video_aggregator%20(2)%20—%20копия%20—%20копия.html",
-  "https://htmlpreview.github.io/?url=https://github.com/OinkTechLtd/Services-OinkPlatforms/blob/main/video_aggregator%20(2)%20—%20копия%20—%20копия.html",
 ];
 
-export type SourceType = "mp4" | "m3u8" | "youtube" | "ultra_aggregator" | "upload" | "external_url";
+export type SourceType = "mp4" | "m3u8" | "youtube" | "ultra_aggregator" | "upload" | "external_url" | "torrent";
 
 interface UniversalPlayerProps {
   src: string;
@@ -24,44 +23,6 @@ interface UniversalPlayerProps {
   onError?: (error: any) => void;
   useProxy?: boolean;
   className?: string;
-}
-
-// YouTube IFrame API state
-declare global {
-  interface Window {
-    YT: any;
-    onYouTubeIframeAPIReady: () => void;
-  }
-}
-
-let ytApiLoaded = false;
-let ytApiLoading = false;
-const ytApiCallbacks: (() => void)[] = [];
-
-function loadYouTubeAPI(): Promise<void> {
-  return new Promise((resolve) => {
-    if (ytApiLoaded) {
-      resolve();
-      return;
-    }
-
-    ytApiCallbacks.push(resolve);
-
-    if (ytApiLoading) return;
-
-    ytApiLoading = true;
-
-    const tag = document.createElement("script");
-    tag.src = "https://www.youtube.com/iframe_api";
-    const firstScriptTag = document.getElementsByTagName("script")[0];
-    firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-
-    window.onYouTubeIframeAPIReady = () => {
-      ytApiLoaded = true;
-      ytApiCallbacks.forEach((cb) => cb());
-      ytApiCallbacks.length = 0;
-    };
-  });
 }
 
 const UniversalPlayer = ({
@@ -79,49 +40,29 @@ const UniversalPlayer = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const hlsRef = useRef<Hls | null>(null);
-  const ytPlayerRef = useRef<any>(null);
-  const ytContainerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentMirror, setCurrentMirror] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [proxyUrl, setProxyUrl] = useState<string | null>(null);
 
-  // Determine actual source type
+  // Determine actual source type from URL
   const getActualSourceType = (): SourceType => {
     if (sourceType === "ultra_aggregator") return "ultra_aggregator";
-    if (src.includes("youtube.com") || src.includes("youtu.be")) return "youtube";
-    if (src.includes(".m3u8")) return "m3u8";
+    if (sourceType === "youtube" || src.includes("youtube.com") || src.includes("youtu.be")) return "youtube";
+    if (src.includes(".m3u8") || src.endsWith(".m3u8")) return "m3u8";
     if (src.includes(".mp4") || src.includes(".webm") || src.includes(".mp3") || src.includes(".wav")) return "mp4";
     return sourceType;
   };
 
   const actualType = getActualSourceType();
 
-  // Apply proxy via edge function if enabled
-  const getProxiedUrl = useCallback(async (url: string): Promise<string> => {
-    if (!useProxy) return url;
-
-    try {
-      const { data, error } = await supabase.functions.invoke("proxy-stream", {
-        body: { url, action: "check" },
-      });
-
-      if (error || !data?.available) {
-        console.warn("Source not available, using original URL");
-        return url;
-      }
-
-      // For actual streaming, use CORS proxy
-      return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-    } catch {
-      return url;
-    }
-  }, [useProxy]);
-
   // Extract YouTube video ID
   const getYouTubeVideoId = (url: string): string | null => {
     const patterns = [
       /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
       /youtube\.com\/watch\?.*v=([^&\n?#]+)/,
+      /youtube\.com\/shorts\/([^&\n?#]+)/,
     ];
     for (const pattern of patterns) {
       const match = url.match(pattern);
@@ -130,65 +71,25 @@ const UniversalPlayer = ({
     return null;
   };
 
-  // YouTube IFrame Player API initialization
-  useEffect(() => {
-    if (actualType !== "youtube") return;
+  // Get proxied URL via edge function
+  const getProxiedUrl = useCallback(async (url: string): Promise<string> => {
+    if (!useProxy) return url;
 
-    const videoId = getYouTubeVideoId(src);
-    if (!videoId || !ytContainerRef.current) return;
-
-    let isMounted = true;
-
-    const initPlayer = async () => {
-      await loadYouTubeAPI();
-
-      if (!isMounted || !ytContainerRef.current) return;
-
-      // Destroy previous player
-      if (ytPlayerRef.current) {
-        ytPlayerRef.current.destroy();
-        ytPlayerRef.current = null;
-      }
-
-      ytPlayerRef.current = new window.YT.Player(ytContainerRef.current, {
-        videoId,
-        playerVars: {
-          autoplay: autoPlay ? 1 : 0,
-          rel: 0,
-          modestbranding: 1,
-          playsinline: 1,
-          enablejsapi: 1,
-          origin: window.location.origin,
-        },
-        events: {
-          onReady: () => {
-            setIsLoading(false);
-            setError(null);
-          },
-          onStateChange: (event: any) => {
-            if (event.data === window.YT.PlayerState.ENDED) {
-              onEnded?.();
-            }
-          },
-          onError: (event: any) => {
-            console.error("YouTube Player Error:", event.data);
-            setError("Ошибка воспроизведения YouTube");
-            onError?.(event);
-          },
-        },
+    try {
+      const { data, error } = await supabase.functions.invoke("proxy-stream", {
+        body: { url, action: "getProxyUrl" },
       });
-    };
 
-    initPlayer();
-
-    return () => {
-      isMounted = false;
-      if (ytPlayerRef.current) {
-        ytPlayerRef.current.destroy();
-        ytPlayerRef.current = null;
+      if (error || !data?.proxyUrl) {
+        console.warn("Failed to get proxy URL, using original");
+        return url;
       }
-    };
-  }, [src, actualType, autoPlay, onEnded, onError]);
+
+      return data.proxyUrl;
+    } catch {
+      return url;
+    }
+  }, [useProxy]);
 
   // HLS / MP4 / Audio playback
   useEffect(() => {
@@ -214,6 +115,7 @@ const UniversalPlayer = ({
 
     const setupMedia = async () => {
       const finalSrc = await getProxiedUrl(src);
+      setProxyUrl(useProxy ? finalSrc : null);
 
       if (actualType === "m3u8") {
         if (Hls.isSupported()) {
@@ -221,6 +123,9 @@ const UniversalPlayer = ({
             enableWorker: true,
             lowLatencyMode: true,
             backBufferLength: 90,
+            xhrSetup: (xhr) => {
+              xhr.withCredentials = false;
+            },
           });
 
           hlsRef.current = hls;
@@ -294,7 +199,7 @@ const UniversalPlayer = ({
     setIsLoading(true);
   };
 
-  // YouTube Player with IFrame API
+  // YouTube Player - ALWAYS use iframe embed (NOT IFrame API which causes issues)
   if (actualType === "youtube") {
     const videoId = getYouTubeVideoId(src);
     if (!videoId) {
@@ -303,13 +208,17 @@ const UniversalPlayer = ({
           <div className="text-center text-destructive">
             <AlertCircle className="w-12 h-12 mx-auto mb-2" />
             <p>Неверная ссылка YouTube</p>
+            <p className="text-xs text-muted-foreground mt-1">{src}</p>
           </div>
         </div>
       );
     }
 
+    // Use standard iframe embed for maximum compatibility
+    const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=${autoPlay ? 1 : 0}&rel=0&modestbranding=1&playsinline=1&enablejsapi=0`;
+
     return (
-      <div className={`aspect-video bg-muted rounded-lg overflow-hidden relative ${className}`}>
+      <div className={`aspect-video bg-black rounded-lg overflow-hidden relative ${className}`}>
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
             <div className="text-center">
@@ -318,7 +227,18 @@ const UniversalPlayer = ({
             </div>
           </div>
         )}
-        <div ref={ytContainerRef} className="w-full h-full" />
+        <iframe
+          ref={iframeRef}
+          src={embedUrl}
+          className="w-full h-full border-0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          onLoad={() => setIsLoading(false)}
+          onError={() => {
+            setError("Ошибка загрузки YouTube");
+            setIsLoading(false);
+          }}
+        />
         {error && (
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-20">
             <div className="text-center text-destructive">
@@ -335,14 +255,13 @@ const UniversalPlayer = ({
     );
   }
 
-  // Ultra Aggregator Player - ALWAYS iframe
+  // Ultra Aggregator Player - ALWAYS iframe (like website)
   if (actualType === "ultra_aggregator") {
-    // Extract watch parameter if present
+    // Parse watch parameter
     let watchParam = "";
     if (src.includes("?watch=")) {
       watchParam = src.split("?watch=")[1];
-    } else if (src && src !== "ultra_aggregator" && !src.startsWith("http")) {
-      // If src is just a domain name, use it as watch param
+    } else if (src && src !== "ultra_aggregator" && !src.startsWith("http") && !src.startsWith("/")) {
       watchParam = src;
     }
 
@@ -351,49 +270,57 @@ const UniversalPlayer = ({
       : ULTRA_AGGREGATOR_URLS[currentMirror];
 
     return (
-      <div className={`aspect-video bg-muted rounded-lg overflow-hidden relative ${className}`}>
-        <iframe
-          src={iframeSrc}
-          className="w-full h-full border-0"
-          allow="fullscreen; autoplay; encrypted-media"
-          allowFullScreen
-          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-          onLoad={() => setIsLoading(false)}
-          onError={() => {
-            setError("Зеркало недоступно");
-            tryNextMirror();
-          }}
-        />
+      <div className={`aspect-video bg-black rounded-lg overflow-hidden relative ${className}`}>
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
             <div className="text-center">
-              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2 text-primary" />
+              <Globe className="w-8 h-8 animate-pulse mx-auto mb-2 text-primary" />
               <p className="text-sm text-muted-foreground">Загрузка Ultra Aggregator...</p>
             </div>
           </div>
         )}
-        {error && currentMirror < ULTRA_AGGREGATOR_URLS.length - 1 && (
-          <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-20">
-            <div className="text-center">
-              <AlertCircle className="w-12 h-12 mx-auto mb-2 text-yellow-500" />
-              <p className="mb-2">Переключение на резервное зеркало...</p>
-              <Button variant="outline" size="sm" onClick={tryNextMirror}>
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Попробовать следующее
-              </Button>
-            </div>
-          </div>
-        )}
-        {error && currentMirror >= ULTRA_AGGREGATOR_URLS.length - 1 && (
+        <iframe
+          src={iframeSrc}
+          className="w-full h-full border-0"
+          allow="fullscreen; autoplay; encrypted-media; picture-in-picture"
+          allowFullScreen
+          sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation"
+          onLoad={() => setIsLoading(false)}
+          onError={() => {
+            if (currentMirror < ULTRA_AGGREGATOR_URLS.length - 1) {
+              tryNextMirror();
+            } else {
+              setError("Все зеркала недоступны");
+              setIsLoading(false);
+            }
+          }}
+        />
+        {error && (
           <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-20">
             <div className="text-center text-destructive">
               <AlertCircle className="w-12 h-12 mx-auto mb-2" />
-              <p className="mb-2">Все зеркала недоступны</p>
-              <Button variant="outline" size="sm" onClick={retry}>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Повторить
-              </Button>
+              <p>{error}</p>
+              <div className="flex gap-2 justify-center mt-2">
+                <Button variant="outline" size="sm" onClick={retry}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Повторить
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => window.open(ULTRA_AGGREGATOR_URLS[0], '_blank')}
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Открыть отдельно
+                </Button>
+              </div>
             </div>
+          </div>
+        )}
+        {/* Mirror indicator */}
+        {currentMirror > 0 && !error && (
+          <div className="absolute bottom-2 right-2 bg-background/80 px-2 py-1 rounded text-xs">
+            Зеркало {currentMirror + 1}/{ULTRA_AGGREGATOR_URLS.length}
           </div>
         )}
       </div>
@@ -407,6 +334,9 @@ const UniversalPlayer = ({
         <Radio className="w-16 h-16 md:w-24 md:h-24 text-primary mb-4 animate-pulse" />
         <h2 className="text-xl md:text-2xl font-bold mb-2">{title || "Радио"}</h2>
         <p className="text-sm text-muted-foreground mb-4">В прямом эфире</p>
+        {useProxy && proxyUrl && (
+          <p className="text-xs text-muted-foreground">🔒 Через прокси</p>
+        )}
         <audio
           ref={audioRef}
           autoPlay={autoPlay}
@@ -424,7 +354,7 @@ const UniversalPlayer = ({
 
   // Default Video Player (MP4/M3U8)
   return (
-    <div className={`aspect-video bg-muted rounded-lg overflow-hidden relative ${className}`}>
+    <div className={`aspect-video bg-black rounded-lg overflow-hidden relative ${className}`}>
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
           <div className="text-center">
@@ -433,10 +363,17 @@ const UniversalPlayer = ({
           </div>
         </div>
       )}
+      {useProxy && proxyUrl && !isLoading && (
+        <div className="absolute top-2 left-2 bg-background/80 px-2 py-1 rounded text-xs flex items-center gap-1 z-10">
+          <Globe className="w-3 h-3" />
+          Прокси
+        </div>
+      )}
       <video
         ref={videoRef}
         autoPlay={autoPlay}
         playsInline
+        controls
         poster={poster}
         onEnded={onEnded}
         onError={(e) => {
@@ -445,9 +382,6 @@ const UniversalPlayer = ({
           onError?.(e);
         }}
         onContextMenu={(e) => e.preventDefault()}
-        controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
-        disablePictureInPicture
-        style={{ pointerEvents: "none" }}
         className="w-full h-full object-contain"
       />
       {error && (

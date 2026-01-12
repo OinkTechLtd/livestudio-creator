@@ -1131,28 +1131,81 @@ const ChannelView = () => {
             <TabsContent value="obs" className="mt-4 md:mt-6">
               <div className="bg-card border-2 border-border rounded-lg p-4 md:p-6 space-y-6">
                 <div>
-                  <h3 className="text-lg md:text-xl font-bold mb-2">Настройки для OBS Studio (через Restream)</h3>
+                  <h3 className="text-lg md:text-xl font-bold mb-2">Настройки для OBS Studio</h3>
                   <p className="text-sm text-muted-foreground">
-                    Используйте Restream.io для мультистриминга на разные платформы
+                    Стриминг через Restream.io, Twitch или YouTube Live
                   </p>
                 </div>
 
                 {!channel.mux_playback_id && !channel.stream_key ? (
-                  <div className="text-center py-8">
+                  <div className="text-center py-8 space-y-4">
                     <p className="text-muted-foreground mb-4">
-                      Создайте канал Restream для получения настроек RTMP
+                      Выберите платформу для получения настроек RTMP
                     </p>
-                    <Button 
-                      onClick={createRestreamChannel} 
-                      disabled={isCreatingStream}
-                      size="lg"
-                    >
-                      {isCreatingStream ? "Создание..." : "Создать Restream канал"}
-                    </Button>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Button 
+                        onClick={() => createRestreamChannel()} 
+                        disabled={isCreatingStream}
+                        size="lg"
+                        className="flex flex-col h-auto py-4"
+                      >
+                        <span className="font-bold">Restream.io</span>
+                        <span className="text-xs opacity-70">Мультистриминг</span>
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          // Set Twitch server directly
+                          setChannel({
+                            ...channel,
+                            mux_playback_id: "rtmp://live.twitch.tv/app",
+                            stream_key: "YOUR_TWITCH_STREAM_KEY",
+                          });
+                          toast({
+                            title: "Twitch",
+                            description: "Введите свой Stream Key из Twitch Dashboard",
+                          });
+                        }} 
+                        variant="outline"
+                        size="lg"
+                        className="flex flex-col h-auto py-4"
+                      >
+                        <span className="font-bold">Twitch</span>
+                        <span className="text-xs opacity-70">Прямой стрим</span>
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          setChannel({
+                            ...channel,
+                            mux_playback_id: "rtmp://a.rtmp.youtube.com/live2",
+                            stream_key: "YOUR_YOUTUBE_STREAM_KEY",
+                          });
+                          toast({
+                            title: "YouTube Live",
+                            description: "Введите свой Stream Key из YouTube Studio",
+                          });
+                        }} 
+                        variant="outline"
+                        size="lg"
+                        className="flex flex-col h-auto py-4"
+                      >
+                        <span className="font-bold">YouTube Live</span>
+                        <span className="text-xs opacity-70">Прямой стрим</span>
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="bg-muted/50 p-4 rounded-lg space-y-4">
+                      {/* Platform indicator */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-medium">Платформа:</span>
+                        <Badge variant="secondary">
+                          {channel.mux_playback_id?.includes("twitch") ? "Twitch" :
+                           channel.mux_playback_id?.includes("youtube") ? "YouTube Live" :
+                           "Restream.io"}
+                        </Badge>
+                      </div>
+
                       {/* RTMP Server */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
@@ -1160,13 +1213,13 @@ const ChannelView = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => copyToClipboard(channel.mux_playback_id || 'rtmp://live.restream.io/live', "RTMP Server")}
+                            onClick={() => copyToClipboard(channel.mux_playback_id || '', "RTMP Server")}
                           >
-                            Копировать
+                            <Copy className="w-4 h-4" />
                           </Button>
                         </div>
                         <Input
-                          value={channel.mux_playback_id || 'rtmp://live.restream.io/live'}
+                          value={channel.mux_playback_id || ''}
                           readOnly
                           className="font-mono text-sm bg-background"
                         />
@@ -1181,7 +1234,7 @@ const ChannelView = () => {
                             size="sm"
                             onClick={() => copyToClipboard(channel.stream_key || '', "Stream Key")}
                           >
-                            Копировать
+                            <Copy className="w-4 h-4" />
                           </Button>
                         </div>
                         <Input
@@ -1191,17 +1244,25 @@ const ChannelView = () => {
                           type="password"
                         />
                         <p className="text-xs text-muted-foreground">
-                          ⚠️ Не делитесь Stream Key с другими людьми
+                          ⚠️ Не делитесь Stream Key — это ваш секретный ключ
                         </p>
                       </div>
                     </div>
 
+                    {/* Platform-specific instructions */}
                     <div className="border-t pt-4">
                       <h4 className="font-semibold mb-3">Инструкция по настройке OBS:</h4>
                       <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
                         <li>Откройте OBS Studio</li>
                         <li>Перейдите в Settings → Stream</li>
-                        <li>Выберите "Restream.io" в Service (или "Custom")</li>
+                        <li>
+                          Service: выберите{" "}
+                          <strong>
+                            {channel.mux_playback_id?.includes("twitch") ? '"Twitch"' :
+                             channel.mux_playback_id?.includes("youtube") ? '"YouTube - RTMPS"' :
+                             '"Restream.io" или "Custom"'}
+                          </strong>
+                        </li>
                         <li>Вставьте <strong>Server</strong> в поле "Server"</li>
                         <li>Вставьте <strong>Stream Key</strong> в поле "Stream Key"</li>
                         <li>Нажмите "Apply" и "OK"</li>
@@ -1209,21 +1270,49 @@ const ChannelView = () => {
                       </ol>
                     </div>
 
+                    {/* Where to get stream key */}
+                    {(channel.stream_key?.includes("YOUR_") || !channel.stream_key) && (
+                      <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
+                        <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400 mb-2">
+                          Где взять Stream Key?
+                        </p>
+                        <ul className="text-xs text-muted-foreground space-y-1">
+                          <li>• <strong>Twitch:</strong> Dashboard → Settings → Stream → Primary Stream Key</li>
+                          <li>• <strong>YouTube:</strong> Studio → Go Live → Stream Settings → Stream Key</li>
+                          <li>• <strong>Restream:</strong> Dashboard → RTMP Settings → Stream Key</li>
+                        </ul>
+                      </div>
+                    )}
+
                     <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
                       <p className="text-sm">
-                        <strong>Статус:</strong> Restream канал готов к использованию.
-                        Ваш поток будет автоматически транслироваться на подключенные платформы.
+                        <strong>Статус:</strong> Канал готов к стримингу.
+                        После запуска OBS трансляция начнётся автоматически.
                       </p>
                     </div>
 
-                    <Button 
-                      onClick={createRestreamChannel} 
-                      disabled={isCreatingStream}
-                      variant="outline"
-                      className="w-full"
-                    >
-                      {isCreatingStream ? "Обновление..." : "Обновить ключи Restream"}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={() => createRestreamChannel()} 
+                        disabled={isCreatingStream}
+                        variant="outline"
+                        className="flex-1"
+                      >
+                        {isCreatingStream ? "Обновление..." : "Получить Restream ключи"}
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          setChannel({
+                            ...channel,
+                            mux_playback_id: null,
+                            stream_key: null,
+                          });
+                        }}
+                        variant="ghost"
+                      >
+                        Сбросить
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>

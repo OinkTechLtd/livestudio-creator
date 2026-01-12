@@ -253,9 +253,9 @@ const TorrentUploader = ({ channelId, onTorrentParsed, onMediaAdded }: TorrentUp
     try {
       const mediaItems = supportedFiles.map(file => ({
         channel_id: channelId,
-        title: file.name,
-        file_url: `torrent://${file.name}`, // Placeholder URL - requires torrent client
-        file_type: "video/mp4",
+        title: file.name.replace(/\.[^/.]+$/, ""), // Remove extension for cleaner title
+        file_url: `torrent://${encodeURIComponent(file.name)}`,
+        file_type: file.name.toLowerCase().endsWith('.mkv') ? "video/x-matroska" : "video/mp4",
         source_type: "torrent",
         is_24_7: false,
       }));
@@ -268,12 +268,13 @@ const TorrentUploader = ({ channelId, onTorrentParsed, onMediaAdded }: TorrentUp
 
       toast({
         title: "Файлы добавлены",
-        description: `${supportedFiles.length} видео добавлено в библиотеку`,
+        description: `${supportedFiles.length} видео добавлено в библиотеку. Для воспроизведения загрузите файлы на сервер.`,
       });
 
       onMediaAdded?.();
       setIsOpen(false);
       setParsedFiles([]);
+      setMagnetLink("");
     } catch (error: any) {
       console.error("Error adding media:", error);
       toast({
