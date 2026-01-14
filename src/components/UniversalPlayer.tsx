@@ -3,6 +3,7 @@ import Hls from "hls.js";
 import { AlertCircle, ExternalLink, Radio, RefreshCw, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import YouTubeIFramePlayer from "./YouTubeIFramePlayer";
 
 const ULTRA_AGGREGATOR_URLS = [
   "/ultra-aggregator.html",
@@ -199,7 +200,7 @@ const UniversalPlayer = ({
     setIsLoading(true);
   };
 
-  // YouTube Player - ALWAYS use iframe embed (NOT IFrame API which causes issues)
+  // YouTube Player - Using YouTube IFrame Player API
   if (actualType === "youtube") {
     const videoId = getYouTubeVideoId(src);
     if (!videoId) {
@@ -214,44 +215,15 @@ const UniversalPlayer = ({
       );
     }
 
-    // Use standard iframe embed for maximum compatibility
-    const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=${autoPlay ? 1 : 0}&rel=0&modestbranding=1&playsinline=1&enablejsapi=0`;
-
     return (
-      <div className={`aspect-video bg-black rounded-lg overflow-hidden relative ${className}`}>
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-            <div className="text-center">
-              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2 text-primary" />
-              <p className="text-sm text-muted-foreground">Загрузка YouTube...</p>
-            </div>
-          </div>
-        )}
-        <iframe
-          ref={iframeRef}
-          src={embedUrl}
-          className="w-full h-full border-0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-          onLoad={() => setIsLoading(false)}
-          onError={() => {
-            setError("Ошибка загрузки YouTube");
-            setIsLoading(false);
-          }}
-        />
-        {error && (
-          <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-20">
-            <div className="text-center text-destructive">
-              <AlertCircle className="w-12 h-12 mx-auto mb-2" />
-              <p>{error}</p>
-              <Button variant="outline" size="sm" className="mt-2" onClick={retry}>
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Повторить
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+      <YouTubeIFramePlayer
+        videoId={videoId}
+        autoPlay={autoPlay}
+        muted={true}
+        onEnded={onEnded}
+        onError={onError}
+        className={className}
+      />
     );
   }
 
