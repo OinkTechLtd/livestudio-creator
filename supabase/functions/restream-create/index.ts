@@ -35,6 +35,8 @@ const PLATFORMS = {
 };
 
 serve(async (req) => {
+  console.log("=== restream-create function called ===");
+  
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -45,8 +47,12 @@ serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
+    console.log("RESTREAM_CLIENT_ID exists:", !!RESTREAM_CLIENT_ID);
+    console.log("RESTREAM_CLIENT_SECRET exists:", !!RESTREAM_CLIENT_SECRET);
+
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
+      console.error("No authorization header provided");
       throw new Error("No authorization header");
     }
 
@@ -57,8 +63,11 @@ serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
+      console.error("Auth error:", authError);
       throw new Error("Unauthorized");
     }
+
+    console.log("User authenticated:", user.id);
 
     const { channelId, platform = "restream", region = "global" } = await req.json();
     

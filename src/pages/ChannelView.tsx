@@ -897,112 +897,38 @@ const ChannelView = () => {
                     </div>
                   </div>
                 ) : mediaContent.length > 0 ? (
-                  <div className="aspect-video bg-muted rounded-lg flex items-center justify-center overflow-hidden relative">
+                  <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
                     {channel.thumbnail_url && channel.channel_type === "tv" && (
-                      <div className="absolute top-4 right-4 z-20">
+                      <div className="absolute top-4 right-4 z-20 pointer-events-none">
                         <img 
                           src={channel.thumbnail_url} 
                           alt={channel.title}
-                          className="w-10 h-10 md:w-14 md:h-14 rounded-full border-2 border-white/50 object-cover shadow-lg"
+                          className="w-10 h-10 md:w-14 md:h-14 rounded-full border-2 border-border object-cover shadow-lg"
                         />
                       </div>
                     )}
-                    <div className="absolute top-4 left-4 bg-destructive text-white px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-semibold flex items-center gap-2 z-10">
-                      <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                    <div className="absolute top-4 left-4 bg-destructive text-destructive-foreground px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-semibold flex items-center gap-2 z-10 pointer-events-none">
+                      <span className="w-2 h-2 bg-destructive-foreground rounded-full animate-pulse" />
                       ПРЯМОЙ ЭФИР
                     </div>
-                    {channel.channel_type === "tv" ? (
-                      mediaContent[currentMediaIndex]?.file_url?.includes('.m3u8') ? (
-                        <HLSPlayer
-                          src={mediaContent[currentMediaIndex].file_url}
-                          autoPlay={true}
-                          className="w-full h-full object-contain"
-                          onEnded={handleMediaEnded}
-                          onError={(e) => {
-                            console.error("HLS error:", e);
-                            if (currentMediaIndex < mediaContent.length - 1) {
-                              setCurrentMediaIndex(currentMediaIndex + 1);
-                            }
-                          }}
-                        />
-                      ) : (
-                        <>
-                          <video
-                            ref={videoRef}
-                            key={mediaContent[currentMediaIndex]?.id || 'video'}
-                            src={mediaContent[currentMediaIndex]?.file_url}
-                            autoPlay
-                            loop={false}
-                            playsInline
-                            className="w-full h-full object-contain"
-                            onContextMenu={(e) => e.preventDefault()}
-                            controlsList="nodownload nofullscreen noremoteplayback noplaybackrate"
-                            disablePictureInPicture
-                            style={{ pointerEvents: 'none' }}
-                            onEnded={handleMediaEnded}
-                            onTimeUpdate={handleTimeUpdate}
-                            onLoadedMetadata={() => {
-                              if (playbackState && videoRef.current) {
-                                syncToServerTime(playbackState);
-                              }
-                            }}
-                            onError={(e) => {
-                              console.error("Video error:", e);
-                              // Try next media on error
-                              handleMediaEnded();
-                            }}
-                          />
-                          <VideoProgressBar
-                            mediaTitle={mediaContent[currentMediaIndex]?.title}
-                            duration={mediaContent[currentMediaIndex]?.duration || undefined}
-                            videoRef={videoRef}
-                          />
-                        </>
-                      )
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-background to-primary/10">
-                        <RadioIcon className="w-16 h-16 md:w-24 md:h-24 text-primary mb-4 md:mb-6 animate-pulse" />
-                        <h2 className="text-xl md:text-2xl font-bold mb-2">{channel.title}</h2>
-                        <p className="text-sm md:text-base text-muted-foreground mb-4 md:mb-6">В эфире: {mediaContent[currentMediaIndex]?.title}</p>
-                        {mediaContent[currentMediaIndex]?.file_url?.includes('.m3u8') ? (
-                          <HLSPlayer
-                            src={mediaContent[currentMediaIndex].file_url}
-                            autoPlay={true}
-                            className="w-full max-w-md"
-                            onEnded={handleMediaEnded}
-                            onError={(e) => {
-                              console.error("HLS audio error:", e);
-                              if (currentMediaIndex < mediaContent.length - 1) {
-                                setCurrentMediaIndex(currentMediaIndex + 1);
-                              }
-                            }}
-                          />
-                        ) : (
-                          <audio
-                            ref={audioRef}
-                            key={mediaContent[currentMediaIndex]?.id || 'audio'}
-                            src={mediaContent[currentMediaIndex]?.file_url}
-                            autoPlay
-                            className="w-full max-w-md"
-                            onContextMenu={(e) => e.preventDefault()}
-                            controlsList="nodownload noplaybackrate"
-                            style={{ pointerEvents: 'none' }}
-                            onEnded={handleMediaEnded}
-                            onTimeUpdate={handleTimeUpdate}
-                            onLoadedMetadata={() => {
-                              if (playbackState && audioRef.current) {
-                                syncToServerTime(playbackState);
-                              }
-                            }}
-                            onError={(e) => {
-                              console.error("Audio error:", e);
-                              if (currentMediaIndex < mediaContent.length - 1) {
-                                setCurrentMediaIndex(currentMediaIndex + 1);
-                              }
-                            }}
-                          />
-                        )}
-                      </div>
+                    {/* Use UniversalPlayer for ALL sources including YouTube/Ultra Aggregator - prevents flickering */}
+                    {mediaContent[currentMediaIndex] && (
+                      <UniversalPlayer
+                        key={`player-${mediaContent[currentMediaIndex].id}-${currentMediaIndex}`}
+                        src={mediaContent[currentMediaIndex].file_url}
+                        sourceType={(mediaContent[currentMediaIndex].source_type as SourceType) || "mp4"}
+                        title={mediaContent[currentMediaIndex].title}
+                        channelType={channel.channel_type}
+                        autoPlay={true}
+                        poster={channel.thumbnail_url || undefined}
+                        onEnded={handleMediaEnded}
+                        useProxy={useProxy}
+                        onError={(e) => {
+                          console.error("Player error:", e);
+                          handleMediaEnded();
+                        }}
+                        className="w-full h-full"
+                      />
                     )}
                   </div>
                 ) : (
