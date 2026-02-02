@@ -178,7 +178,7 @@ const ReportDialog = ({ open, onOpenChange, channelId, channelTitle }: ReportDia
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         {showResult && moderationResult ? (
           <div className="text-center py-4">
             <div className="mb-4 flex justify-center">

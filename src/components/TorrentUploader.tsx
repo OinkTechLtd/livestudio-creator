@@ -251,30 +251,43 @@ const TorrentUploader = ({ channelId, onTorrentParsed, onMediaAdded }: TorrentUp
     setIsAddingMedia(true);
 
     try {
-      const mediaItems = supportedFiles.map(file => ({
-        channel_id: channelId,
-        title: file.name.replace(/\.[^/.]+$/, ""), // Remove extension for cleaner title
-        file_url: `torrent://${encodeURIComponent(file.name)}`,
-        file_type: file.name.toLowerCase().endsWith('.mkv') ? "video/x-matroska" : "video/mp4",
-        source_type: "torrent",
-        is_24_7: false,
-      }));
+      // Insert each file one by one to ensure they all get added
+      let successCount = 0;
+      for (const file of supportedFiles) {
+        const mediaItem = {
+          channel_id: channelId,
+          title: file.name.replace(/\.[^/.]+$/, ""), // Remove extension for cleaner title
+          file_url: `torrent://${encodeURIComponent(file.name)}`,
+          file_type: file.name.toLowerCase().endsWith('.mkv') ? "video/x-matroska" : "video/mp4",
+          source_type: "torrent",
+          is_24_7: true, // Mark as active so it appears in playlist
+        };
 
-      const { error } = await supabase
-        .from("media_content")
-        .insert(mediaItems);
+        const { error } = await supabase
+          .from("media_content")
+          .insert(mediaItem);
 
-      if (error) throw error;
+        if (!error) {
+          successCount++;
+        } else {
+          console.error("Error inserting media:", error);
+        }
+      }
 
-      toast({
-        title: "Файлы добавлены",
-        description: `${supportedFiles.length} видео добавлено в библиотеку. Для воспроизведения загрузите файлы на сервер.`,
-      });
+      if (successCount > 0) {
+        toast({
+          title: "✅ Файлы добавлены в библиотеку!",
+          description: `${successCount} из ${supportedFiles.length} видео добавлено. Теперь они доступны для трансляции.`,
+        });
 
-      onMediaAdded?.();
-      setIsOpen(false);
-      setParsedFiles([]);
-      setMagnetLink("");
+        // Call the callback to refresh media list
+        onMediaAdded?.();
+        setIsOpen(false);
+        setParsedFiles([]);
+        setMagnetLink("");
+      } else {
+        throw new Error("Не удалось добавить ни один файл");
+      }
     } catch (error: any) {
       console.error("Error adding media:", error);
       toast({

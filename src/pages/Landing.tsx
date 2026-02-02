@@ -58,7 +58,7 @@ const Landing = () => {
           <div className="text-center max-w-4xl mx-auto">
             <Badge variant="secondary" className="mb-4 px-4 py-1">
               <Zap className="w-3 h-3 mr-1" />
-              StreamLiveTV v2.0.0
+              Смотрите и Создавайте Каналы
             </Badge>
             
             <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
