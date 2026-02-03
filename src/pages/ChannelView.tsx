@@ -520,6 +520,22 @@ const ChannelView = () => {
       const rtmpServer = data.rtmpServer || 'rtmp://live.restream.io/live';
       const streamKey = data.streamKey || '';
 
+      // If backend couldn't fetch a valid key, do NOT save a fake key
+      if (data?.requiresManualSetup || !streamKey) {
+        toast({
+          title: "Restream требует ручной настройки",
+          description: data?.note || "Не удалось автоматически получить Stream Key. Откройте Restream и вставьте ваш Stream Key вручную.",
+        });
+
+        setRestreamUrl(`${rtmpServer}/<ВАШ_STREAM_KEY>`);
+        setChannel({
+          ...channel,
+          mux_playback_id: rtmpServer,
+          stream_key: null,
+        });
+        return;
+      }
+
       setRestreamUrl(`${rtmpServer}/${streamKey}`);
 
       setChannel({

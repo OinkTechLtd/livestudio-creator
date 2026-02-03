@@ -30,6 +30,12 @@ const ReportDialog = ({ open, onOpenChange, channelId, channelTitle }: ReportDia
   const [showResult, setShowResult] = useState(false);
   const { toast } = useToast();
 
+  const closeAndReset = () => {
+    setShowResult(false);
+    setModerationResult(null);
+    onOpenChange(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -143,11 +149,7 @@ const ReportDialog = ({ open, onOpenChange, channelId, channelTitle }: ReportDia
     }
   };
 
-  const handleClose = () => {
-    setShowResult(false);
-    setModerationResult(null);
-    onOpenChange(false);
-  };
+  const handleClose = () => closeAndReset();
 
   const getDecisionIcon = (decision: string) => {
     switch (decision) {
@@ -177,7 +179,19 @@ const ReportDialog = ({ open, onOpenChange, channelId, channelTitle }: ReportDia
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) {
+          // Ensure clean state each time dialog opens
+          setShowResult(false);
+          setModerationResult(null);
+          onOpenChange(true);
+          return;
+        }
+        closeAndReset();
+      }}
+    >
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         {showResult && moderationResult ? (
           <div className="text-center py-4">

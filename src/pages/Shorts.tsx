@@ -61,6 +61,8 @@ const Shorts = () => {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const containerRef = useRef<HTMLDivElement>(null);
+  const chatRootRef = useRef<HTMLDivElement>(null);
+  const chatListRef = useRef<HTMLDivElement>(null);
   
   const [channels, setChannels] = useState<Channel[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -72,6 +74,7 @@ const Shorts = () => {
   const [mediaByChannel, setMediaByChannel] = useState<Record<string, MediaContent[]>>({});
   const [likedChannels, setLikedChannels] = useState<Set<string>>(new Set());
   const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
 
   // Fetch channels with AI recommendation logic
   useEffect(() => {
@@ -125,7 +128,7 @@ const Shorts = () => {
         .from("media_content")
         .select("id, file_url, source_type, title, channel_id")
         .in("channel_id", channelIds)
-        .eq("is_24_7", true);
+        .order("created_at", { ascending: true });
       
       if (mediaData) {
         const mediaMap: Record<string, MediaContent[]> = {};
@@ -164,9 +167,20 @@ const Shorts = () => {
   useEffect(() => {
     if (channels[currentIndex]) {
       fetchChatMessages(channels[currentIndex].id);
-      subscribeToChat(channels[currentIndex].id);
+      const unsubscribe = subscribeToChat(channels[currentIndex].id);
+      // Reset source index when switching to a new channel
+      setCurrentSourceIndex(0);
+      return unsubscribe;
     }
   }, [currentIndex, channels]);
+
+  // Auto-scroll chat to bottom when new messages arrive
+  useEffect(() => {
+    if (!showChat) return;
+    const el = chatListRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [chatMessages, showChat]);
 
   const fetchChatMessages = async (channelId: string) => {
     const { data } = await supabase
@@ -217,10 +231,19 @@ const Shorts = () => {
 
   // Swipe handling
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (showChat) return;
+    const target = e.target as unknown as Node;
+    if (chatRootRef.current?.contains(target)) return;
     setTouchStart(e.touches[0].clientY);
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
+    if (showChat) return;
+    const target = e.target as unknown as Node;
+    if (chatRootRef.current?.contains(target)) {
+      setTouchStart(null);
+      return;
+    }
     if (!touchStart) return;
     
     const touchEnd = e.changedTouches[0].clientY;
@@ -319,8 +342,15 @@ const Shorts = () => {
   }
 
   const currentChannel = channels[currentIndex];
-  const currentMedia = mediaByChannel[currentChannel?.id]?.[0];
+  const sourcesForChannel = mediaByChannel[currentChannel?.id] || [];
+  const safeSourceIndex = Math.min(currentSourceIndex, Math.max(0, sourcesForChannel.length - 1));
+  const currentMedia = sourcesForChannel[safeSourceIndex];
   const isLiked = likedChannels.has(currentChannel?.id);
+
+  const cycleSource = () => {
+    if (sourcesForChannel.length <= 1) return;
+    setCurrentSourceIndex((prev) => (prev + 1) % sourcesForChannel.length);
+  };
 
   return (
     <div 
@@ -377,6 +407,14 @@ const Shorts = () => {
           <Users className="w-3 h-3" />
           <span>{currentChannel.viewer_count || 0} смотрят</span>
         </div>
+
+        {sourcesForChannel.length > 1 && (
+          <div className="mt-3">
+            <Button type="button" variant="secondary" size="sm" onClick={cycleSource}>
+              Источник {safeSourceIndex + 1}/{sourcesForChannel.length}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Actions - Right Side */}
@@ -458,7 +496,12 @@ const Shorts = () => {
 
       {/* Chat Overlay */}
       {showChat && (
-        <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/90 to-transparent z-20 flex flex-col">
+        <div
+          ref={chatRootRef}
+          className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/90 to-transparent z-20 flex flex-col"
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center justify-between p-4">
             <h4 className="text-white font-semibold">Чат трансляции</h4>
             <button onClick={() => setShowChat(false)}>
@@ -466,7 +509,7 @@ const Shorts = () => {
             </button>
           </div>
           
-          <div className="flex-1 overflow-y-auto px-4 space-y-2">
+          <div ref={chatListRef} className="flex-1 overflow-y-auto px-4 space-y-2">
             {chatMessages.map((msg) => (
               <div key={msg.id} className="flex items-start gap-2">
                 <Avatar className="w-6 h-6">

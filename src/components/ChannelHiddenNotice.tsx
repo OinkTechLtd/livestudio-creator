@@ -66,7 +66,9 @@ const ChannelHiddenNotice = ({ channelId, hiddenReason, isOwner }: ChannelHidden
               Канал скрыт
             </CardTitle>
             <CardDescription>
-              Этот канал был скрыт из-за нарушения правил платформы
+              {hiddenReason
+                ? `Этот канал был скрыт: ${hiddenReason}`
+                : "Этот канал был скрыт из-за нарушения правил платформы"}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -83,7 +85,7 @@ const ChannelHiddenNotice = ({ channelId, hiddenReason, isOwner }: ChannelHidden
             Ваш канал скрыт
           </CardTitle>
           <CardDescription>
-            Ваш канал был скрыт из-за многочисленных жалоб от пользователей
+            Ваш канал скрыт. Причина указана ниже.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
