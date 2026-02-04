@@ -8,3 +8,15 @@ verify_jwt = false
 
 [functions.send-notification]
 verify_jwt = true
+
+[functions.restream-create]
+verify_jwt = true
+
+[functions.restream-oauth-callback]
+verify_jwt = false
+
+[functions.ai-moderate-channel]
+verify_jwt = true
+
+[functions.proxy-stream]
+verify_jwt = false

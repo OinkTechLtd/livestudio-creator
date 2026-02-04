@@ -101,7 +101,7 @@ const Shorts = () => {
       }
     }
 
-    // Fetch all active channels
+    // Fetch all active channels (not hidden)
     const { data, error } = await supabase
       .from("channels")
       .select(`
@@ -112,8 +112,59 @@ const Shorts = () => {
       .order("viewer_count", { ascending: false });
 
     if (!error && data) {
+      // Fetch media for deduplication
+      const channelIds = (data as any[]).map(c => c.id);
+      const { data: mediaData } = await supabase
+        .from("media_content")
+        .select("id, file_url, source_type, title, channel_id")
+        .in("channel_id", channelIds)
+        .order("created_at", { ascending: true });
+
+      // Build media map
+      const mediaMap: Record<string, MediaContent[]> = {};
+      if (mediaData) {
+        mediaData.forEach((m: any) => {
+          if (!mediaMap[m.channel_id]) mediaMap[m.channel_id] = [];
+          mediaMap[m.channel_id].push(m);
+        });
+      }
+      setMediaByChannel(mediaMap);
+
+      // DEDUPLICATION FILTER
+      // 1. Remove duplicates by title + type
+      // 2. Remove duplicates by source URL
+      const seenTitles = new Set<string>();
+      const seenSources = new Set<string>();
+      
+      const filteredChannels = (data as any[]).filter((ch) => {
+        // Skip channels without description (low quality)
+        // Commented out per user request - only filter duplicates
+        // if (!ch.description || ch.description.trim().length < 5) return false;
+        
+        // Check title duplicate (normalize: lowercase, trim)
+        const titleKey = `${ch.title?.toLowerCase().trim()}|${ch.channel_type}`;
+        if (seenTitles.has(titleKey)) {
+          console.log("Filtering duplicate by title:", ch.title);
+          return false;
+        }
+        seenTitles.add(titleKey);
+        
+        // Check source URL duplicate
+        const channelMedia = mediaMap[ch.id] || [];
+        for (const media of channelMedia) {
+          const sourceKey = media.file_url?.toLowerCase().trim();
+          if (sourceKey && seenSources.has(sourceKey)) {
+            console.log("Filtering duplicate by source:", ch.title, media.file_url);
+            return false;
+          }
+          if (sourceKey) seenSources.add(sourceKey);
+        }
+        
+        return true;
+      });
+
       // Sort by relevance (viewed categories first, then by viewer count)
-      const sortedChannels = (data as any[]).sort((a, b) => {
+      const sortedChannels = filteredChannels.sort((a, b) => {
         const aRelevance = viewedCategories.filter(c => c === a.category_id).length;
         const bRelevance = viewedCategories.filter(c => c === b.category_id).length;
         if (aRelevance !== bRelevance) return bRelevance - aRelevance;
@@ -121,23 +172,6 @@ const Shorts = () => {
       });
       
       setChannels(sortedChannels);
-      
-      // Fetch media for all channels
-      const channelIds = sortedChannels.map(c => c.id);
-      const { data: mediaData } = await supabase
-        .from("media_content")
-        .select("id, file_url, source_type, title, channel_id")
-        .in("channel_id", channelIds)
-        .order("created_at", { ascending: true });
-      
-      if (mediaData) {
-        const mediaMap: Record<string, MediaContent[]> = {};
-        mediaData.forEach((m: any) => {
-          if (!mediaMap[m.channel_id]) mediaMap[m.channel_id] = [];
-          mediaMap[m.channel_id].push(m);
-        });
-        setMediaByChannel(mediaMap);
-      }
     }
     
     setLoading(false);
