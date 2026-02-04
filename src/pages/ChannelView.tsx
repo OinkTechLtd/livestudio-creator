@@ -126,6 +126,7 @@ const ChannelView = () => {
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [useProxy, setUseProxy] = useState(false);
+  const [manualStreamKey, setManualStreamKey] = useState("");
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -498,13 +499,13 @@ const ChannelView = () => {
     window.open(popoutUrl, 'popout', 'width=1200,height=700,menubar=no,toolbar=no,location=no,status=no');
   };
 
-  const createRestreamChannel = async () => {
+  const createRestreamChannel = async (platform: "restream" | "twitch" | "youtube" = "restream") => {
     if (!channel) return;
 
     setIsCreatingStream(true);
     try {
       const { data, error } = await supabase.functions.invoke('restream-create', {
-        body: { channelId: channel.id, title: channel.title },
+        body: { channelId: channel.id, platform },
       });
 
       if (error) {
@@ -517,27 +518,37 @@ const ChannelView = () => {
         throw new Error(data.error);
       }
 
+      // If we get an OAuth URL, open it for the user to authorize
+      if (data?.oauthUrl) {
+        toast({
+          title: "Авторизация Restream",
+          description: "Откроется страница Restream для подключения аккаунта...",
+        });
+        // Open in same window so redirect works
+        window.location.href = data.oauthUrl;
+        return;
+      }
+
       const rtmpServer = data.rtmpServer || 'rtmp://live.restream.io/live';
       const streamKey = data.streamKey || '';
 
-      // If backend couldn't fetch a valid key, do NOT save a fake key
+      // For manual setup (Twitch/YouTube or no Restream OAuth)
       if (data?.requiresManualSetup || !streamKey) {
-        toast({
-          title: "Restream требует ручной настройки",
-          description: data?.note || "Не удалось автоматически получить Stream Key. Откройте Restream и вставьте ваш Stream Key вручную.",
-        });
-
         setRestreamUrl(`${rtmpServer}/<ВАШ_STREAM_KEY>`);
         setChannel({
           ...channel,
           mux_playback_id: rtmpServer,
           stream_key: null,
         });
+        
+        toast({
+          title: data?.platform?.name || "Настройка стрима",
+          description: data?.note || "Вставьте Stream Key вручную",
+        });
         return;
       }
 
       setRestreamUrl(`${rtmpServer}/${streamKey}`);
-
       setChannel({
         ...channel,
         mux_playback_id: rtmpServer,
@@ -551,12 +562,64 @@ const ChannelView = () => {
     } catch (error: any) {
       console.error('Error creating Restream channel:', error);
       toast({
-        title: "Ошибка Restream",
-        description: error.message || "Не удалось создать канал Restream. Проверьте API ключи.",
+        title: "Ошибка",
+        description: error.message || "Не удалось настроить стрим",
         variant: "destructive",
       });
     } finally {
       setIsCreatingStream(false);
+    }
+  };
+
+  // Handle OAuth callback success
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('restream') === 'success') {
+      toast({
+        title: "✅ Restream подключён!",
+        description: "RTMP Server и Stream Key сохранены. Теперь можно стримить через OBS.",
+      });
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+      // Refetch channel to get updated keys
+      fetchChannel();
+    }
+  }, []);
+
+  const saveManualStreamKey = async () => {
+    if (!channel || !manualStreamKey.trim()) return;
+
+    try {
+      const { error } = await supabase
+        .from("channels")
+        .update({
+          mux_playback_id: "rtmp://live.restream.io/live",
+          stream_key: manualStreamKey.trim(),
+          streaming_method: "live",
+        })
+        .eq("id", channel.id);
+
+      if (error) throw error;
+
+      setChannel({
+        ...channel,
+        mux_playback_id: "rtmp://live.restream.io/live",
+        stream_key: manualStreamKey.trim(),
+      });
+
+      setRestreamUrl(`rtmp://live.restream.io/live/${manualStreamKey.trim()}`);
+      setManualStreamKey("");
+
+      toast({
+        title: "Сохранено",
+        description: "Stream Key сохранён. Теперь можно стримить через OBS.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось сохранить ключ",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1087,53 +1150,64 @@ const ChannelView = () => {
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <Button 
-                        onClick={() => createRestreamChannel()} 
+                        onClick={() => createRestreamChannel("restream")} 
                         disabled={isCreatingStream}
                         size="lg"
                         className="flex flex-col h-auto py-4"
                       >
-                        <span className="font-bold">Restream.io</span>
-                        <span className="text-xs opacity-70">Мультистриминг</span>
+                        {isCreatingStream ? (
+                          <span className="font-bold">Подключение...</span>
+                        ) : (
+                          <>
+                            <span className="font-bold">Restream.io</span>
+                            <span className="text-xs opacity-70">OAuth авто-подключение</span>
+                          </>
+                        )}
                       </Button>
                       <Button 
-                        onClick={() => {
-                          // Set Twitch server directly
-                          setChannel({
-                            ...channel,
-                            mux_playback_id: "rtmp://live.twitch.tv/app",
-                            stream_key: "YOUR_TWITCH_STREAM_KEY",
-                          });
-                          toast({
-                            title: "Twitch",
-                            description: "Введите свой Stream Key из Twitch Dashboard",
-                          });
-                        }} 
+                        onClick={() => createRestreamChannel("twitch")}
+                        disabled={isCreatingStream}
                         variant="outline"
                         size="lg"
                         className="flex flex-col h-auto py-4"
                       >
                         <span className="font-bold">Twitch</span>
-                        <span className="text-xs opacity-70">Прямой стрим</span>
+                        <span className="text-xs opacity-70">Ручной ввод ключа</span>
                       </Button>
                       <Button 
-                        onClick={() => {
-                          setChannel({
-                            ...channel,
-                            mux_playback_id: "rtmp://a.rtmp.youtube.com/live2",
-                            stream_key: "YOUR_YOUTUBE_STREAM_KEY",
-                          });
-                          toast({
-                            title: "YouTube Live",
-                            description: "Введите свой Stream Key из YouTube Studio",
-                          });
-                        }} 
+                        onClick={() => createRestreamChannel("youtube")}
+                        disabled={isCreatingStream}
                         variant="outline"
                         size="lg"
                         className="flex flex-col h-auto py-4"
                       >
                         <span className="font-bold">YouTube Live</span>
-                        <span className="text-xs opacity-70">Прямой стрим</span>
+                        <span className="text-xs opacity-70">Ручной ввод ключа</span>
                       </Button>
+                    </div>
+
+                    {/* Manual Stream Key Input */}
+                    <div className="mt-6 p-4 border border-border rounded-lg space-y-4">
+                      <h4 className="font-medium text-sm">Или введите Stream Key вручную:</h4>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Ваш Stream Key из Restream/Twitch/YouTube"
+                          value={manualStreamKey}
+                          onChange={(e) => setManualStreamKey(e.target.value)}
+                          type="password"
+                          className="flex-1"
+                        />
+                        <Button
+                          onClick={saveManualStreamKey}
+                          disabled={!manualStreamKey.trim()}
+                          variant="secondary"
+                        >
+                          Сохранить
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        RTMP Server: <code className="bg-muted px-1 rounded">rtmp://live.restream.io/live</code>
+                      </p>
                     </div>
                   </div>
                 ) : (
