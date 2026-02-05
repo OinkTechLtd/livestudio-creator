@@ -18,27 +18,59 @@ serve(async (req) => {
     const RESTREAM_CLIENT_ID = Deno.env.get("RESTREAM_CLIENT_ID");
     const RESTREAM_CLIENT_SECRET = Deno.env.get("RESTREAM_CLIENT_SECRET");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     if (!RESTREAM_CLIENT_ID || !RESTREAM_CLIENT_SECRET) {
       throw new Error("Restream credentials not configured");
     }
 
-    const url = new URL(req.url);
-    const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state"); // channelId:userId encoded
-    
-    if (!code || !state) {
-      throw new Error("Missing code or state parameter");
+    if (req.method !== "POST") {
+      return new Response(JSON.stringify({ error: "Method not allowed" }), {
+        status: 405,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // Parse state: channelId:userId
-    const [channelId, userId] = state.split(":");
-    if (!channelId || !userId) {
-      throw new Error("Invalid state format");
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    console.log("Processing OAuth callback for channel:", channelId);
+    const { code, channelId, redirectUri } = await req.json();
+    if (!code || !channelId || !redirectUri) {
+      throw new Error("Missing code/channelId/redirectUri");
+    }
+
+    // Validate user + channel ownership (user session)
+    const supabaseAuthed = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const {
+      data: { user },
+      error: userErr,
+    } = await supabaseAuthed.auth.getUser();
+
+    if (userErr || !user) {
+      throw new Error("Unauthorized");
+    }
+
+    const { data: channel, error: channelError } = await supabaseAuthed
+      .from("channels")
+      .select("id, user_id")
+      .eq("id", channelId)
+      .single();
+
+    if (channelError || !channel) {
+      throw new Error("Channel not found");
+    }
+    if (channel.user_id !== user.id) {
+      throw new Error("Not channel owner");
+    }
 
     // Exchange code for tokens
     const tokenResponse = await fetch("https://api.restream.io/oauth/token", {
@@ -49,8 +81,8 @@ serve(async (req) => {
       },
       body: new URLSearchParams({
         grant_type: "authorization_code",
-        code: code,
-        redirect_uri: `${SUPABASE_URL}/functions/v1/restream-oauth-callback`,
+        code: String(code),
+        redirect_uri: String(redirectUri),
       }),
     });
 
@@ -62,8 +94,6 @@ serve(async (req) => {
 
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
-
-    console.log("Got access token, fetching ingest info...");
 
     // Fetch ingest/RTMP info
     const ingestResponse = await fetch("https://api.restream.io/v2/user/ingest", {
@@ -79,8 +109,6 @@ serve(async (req) => {
     }
 
     const ingestData = await ingestResponse.json();
-    console.log("Ingest data:", JSON.stringify(ingestData));
-
     const rtmpServer = ingestData?.rtmp?.url || ingestData?.ingestEndpoint || "rtmp://live.restream.io/live";
     const streamKey = ingestData?.rtmp?.key || ingestData?.streamKey;
 
@@ -89,25 +117,9 @@ serve(async (req) => {
     }
 
     // Update channel with stream info using service role
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Verify ownership
-    const { data: channel, error: channelError } = await supabase
-      .from("channels")
-      .select("id, user_id")
-      .eq("id", channelId)
-      .single();
-
-    if (channelError || !channel) {
-      throw new Error("Channel not found");
-    }
-
-    if (channel.user_id !== userId) {
-      throw new Error("Not channel owner");
-    }
-
-    // Update channel
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from("channels")
       .update({
         mux_playback_id: rtmpServer,
@@ -121,72 +133,18 @@ serve(async (req) => {
       throw updateError;
     }
 
-    console.log("Channel updated successfully!");
-
-    // Redirect back to channel page with success
-    const redirectUrl = `${url.origin.replace('functions/v1/restream-oauth-callback', '')}channel/${channelId}?restream=success`;
-    
     return new Response(
-      `<!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Restream Connected</title>
-        <style>
-          body { font-family: system-ui; background: #0a0a0a; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-          .card { background: #1a1a1a; padding: 2rem; border-radius: 12px; text-align: center; max-width: 400px; }
-          h1 { color: #10b981; margin-bottom: 1rem; }
-          p { color: #888; margin-bottom: 1.5rem; }
-          .btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; text-decoration: none; display: inline-block; }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <h1>✅ Restream подключён!</h1>
-          <p>RTMP Server и Stream Key сохранены. Теперь вы можете стримить через OBS.</p>
-          <a href="/channel/${channelId}" class="btn">Вернуться к каналу</a>
-        </div>
-        <script>
-          setTimeout(() => { window.location.href = '/channel/${channelId}'; }, 3000);
-        </script>
-      </body>
-      </html>`,
+      JSON.stringify({ success: true, rtmpServer, streamKey }),
       {
         status: 200,
-        headers: { ...corsHeaders, "Content-Type": "text/html" },
-      }
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   } catch (error: any) {
     console.error("OAuth callback error:", error);
-    
-    return new Response(
-      `<!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <title>Ошибка Restream</title>
-        <style>
-          body { font-family: system-ui; background: #0a0a0a; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-          .card { background: #1a1a1a; padding: 2rem; border-radius: 12px; text-align: center; max-width: 400px; }
-          h1 { color: #ef4444; margin-bottom: 1rem; }
-          p { color: #888; margin-bottom: 1.5rem; }
-          .error { background: #7f1d1d; color: #fca5a5; padding: 1rem; border-radius: 8px; font-size: 0.875rem; margin-bottom: 1rem; }
-          .btn { background: #333; color: #fff; padding: 12px 24px; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; text-decoration: none; display: inline-block; }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <h1>❌ Ошибка подключения</h1>
-          <div class="error">${error.message}</div>
-          <p>Попробуйте снова или используйте ручной ввод Stream Key.</p>
-          <a href="/" class="btn">На главную</a>
-        </div>
-      </body>
-      </html>`,
-      {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "text/html" },
-      }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

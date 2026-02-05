@@ -22,6 +22,7 @@ import Changelog from "./pages/Changelog";
 import ApiDocumentation from "./pages/ApiDocumentation";
 import Landing from "./pages/Landing";
 import Shorts from "./pages/Shorts";
+import RestreamCallback from "./pages/RestreamCallback";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
           <AppSidebar />
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/restream/callback" element={<RestreamCallback />} />
             <Route path="/browse" element={<Index />} />
             <Route path="/shorts" element={<Shorts />} />
             <Route path="/auth" element={<Auth />} />

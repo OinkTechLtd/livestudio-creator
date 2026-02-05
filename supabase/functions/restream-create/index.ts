@@ -68,7 +68,7 @@ serve(async (req) => {
 
     console.log("User authenticated:", user.id);
 
-    const { channelId, platform = "restream", region = "global", action = "getOAuthUrl" } = await req.json();
+    const { channelId, platform = "restream", region = "global" } = await req.json();
 
     if (!channelId) {
       throw new Error("Channel ID required");
@@ -134,10 +134,24 @@ serve(async (req) => {
     }
 
     // Generate OAuth URL for Restream
-    const state = `${channelId}:${user.id}`;
-    const redirectUri = `${SUPABASE_URL}/functions/v1/restream-oauth-callback`;
+    // Redirect back into the app (NOT the backend function URL) to avoid exposing internal URLs
+    // and to keep redirect_uri stable for Restream settings.
+    const state = `${channelId}`;
+
+    const originHeader = req.headers.get("origin") || "";
+    const refererHeader = req.headers.get("referer") || "";
+    const fallbackOrigin = refererHeader ? new URL(refererHeader).origin : "";
+    const appOrigin = originHeader || fallbackOrigin;
+
+    if (!appOrigin) {
+      throw new Error("Missing request origin (cannot build redirect_uri)");
+    }
+
+    const redirectUri = `${appOrigin.replace(/\/$/, "")}/restream/callback`;
     
-    const oauthUrl = `https://api.restream.io/login?response_type=code&client_id=${RESTREAM_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
+    const oauthUrl = `https://api.restream.io/login?response_type=code&client_id=${RESTREAM_CLIENT_ID}&redirect_uri=${encodeURIComponent(
+      redirectUri,
+    )}&state=${encodeURIComponent(state)}`;
 
     console.log("Generated OAuth URL for Restream");
 
@@ -145,6 +159,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         oauthUrl,
+        redirectUri,
         rtmpServer: RESTREAM_SERVERS[region as keyof typeof RESTREAM_SERVERS] || RESTREAM_SERVERS.global,
         platform: PLATFORMS.restream,
         note: "Нажмите кнопку ниже для авторизации в Restream. После этого RTMP Server и Stream Key будут настроены автоматически.",
