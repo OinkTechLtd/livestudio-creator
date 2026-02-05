@@ -272,10 +272,12 @@ const ChannelView = () => {
   };
 
   useEffect(() => {
-    if (channel?.stream_key) {
-      setRestreamUrl(channel.stream_key);
+    if (channel?.streaming_method === "live" && channel?.mux_playback_id && channel?.stream_key) {
+      setRestreamUrl(`${channel.mux_playback_id}/${channel.stream_key}`);
+    } else {
+      setRestreamUrl("");
     }
-  }, [channel]);
+  }, [channel?.streaming_method, channel?.mux_playback_id, channel?.stream_key]);
 
   const fetchChannel = async () => {
     if (!id) return;
@@ -534,12 +536,14 @@ const ChannelView = () => {
 
       // For manual setup (Twitch/YouTube or no Restream OAuth)
       if (data?.requiresManualSetup || !streamKey) {
-        setRestreamUrl(`${rtmpServer}/<ВАШ_STREAM_KEY>`);
-        setChannel({
-          ...channel,
-          mux_playback_id: rtmpServer,
-          stream_key: null,
-        });
+        // Persist RTMP server choice so it doesn't “disappear” after reload
+        await supabase
+          .from("channels")
+          .update({ mux_playback_id: rtmpServer, stream_key: null, streaming_method: "live" })
+          .eq("id", channel.id);
+
+        setChannel({ ...channel, mux_playback_id: rtmpServer, stream_key: null, streaming_method: "live" });
+        setRestreamUrl("");
         
         toast({
           title: data?.platform?.name || "Настройка стрима",
@@ -548,12 +552,12 @@ const ChannelView = () => {
         return;
       }
 
-      setRestreamUrl(`${rtmpServer}/${streamKey}`);
-      setChannel({
-        ...channel,
-        mux_playback_id: rtmpServer,
-        stream_key: streamKey,
-      });
+      await supabase
+        .from("channels")
+        .update({ mux_playback_id: rtmpServer, stream_key: streamKey, streaming_method: "live" })
+        .eq("id", channel.id);
+
+      setChannel({ ...channel, mux_playback_id: rtmpServer, stream_key: streamKey, streaming_method: "live" });
 
       toast({
         title: "Успешно",
@@ -590,10 +594,11 @@ const ChannelView = () => {
     if (!channel || !manualStreamKey.trim()) return;
 
     try {
+      const rtmpServer = channel.mux_playback_id || "rtmp://live.restream.io/live";
       const { error } = await supabase
         .from("channels")
         .update({
-          mux_playback_id: "rtmp://live.restream.io/live",
+          mux_playback_id: rtmpServer,
           stream_key: manualStreamKey.trim(),
           streaming_method: "live",
         })
@@ -603,11 +608,11 @@ const ChannelView = () => {
 
       setChannel({
         ...channel,
-        mux_playback_id: "rtmp://live.restream.io/live",
+        mux_playback_id: rtmpServer,
         stream_key: manualStreamKey.trim(),
       });
 
-      setRestreamUrl(`rtmp://live.restream.io/live/${manualStreamKey.trim()}`);
+      setRestreamUrl(`${rtmpServer}/${manualStreamKey.trim()}`);
       setManualStreamKey("");
 
       toast({
@@ -1143,7 +1148,7 @@ const ChannelView = () => {
                   </p>
                 </div>
 
-                {!channel.mux_playback_id && !channel.stream_key ? (
+                {!channel.mux_playback_id || !channel.stream_key ? (
                   <div className="text-center py-8 space-y-4">
                     <p className="text-muted-foreground mb-4">
                       Выберите платформу для получения настроек RTMP
@@ -1206,7 +1211,10 @@ const ChannelView = () => {
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        RTMP Server: <code className="bg-muted px-1 rounded">rtmp://live.restream.io/live</code>
+                        RTMP Server:{" "}
+                        <code className="bg-muted px-1 rounded">
+                          {channel.mux_playback_id || "rtmp://live.restream.io/live"}
+                        </code>
                       </p>
                     </div>
                   </div>

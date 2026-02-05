@@ -1,244 +1,315 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ultra Aggregator</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    body {
-      background: #0a0a0a;
-      color: #fff;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-    .header {
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-      padding: 1rem;
-      text-align: center;
-      border-bottom: 1px solid #333;
-    }
-    .header h1 {
-      font-size: 1.5rem;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    .search-container {
-      padding: 1rem;
-      background: #111;
-    }
-    .search-box {
-      display: flex;
-      gap: 0.5rem;
-      max-width: 600px;
-      margin: 0 auto;
-    }
-    .search-input {
-      flex: 1;
-      padding: 0.75rem 1rem;
-      border: 1px solid #333;
-      border-radius: 8px;
-      background: #1a1a1a;
-      color: #fff;
-      font-size: 1rem;
-    }
-    .search-input:focus {
-      outline: none;
-      border-color: #667eea;
-    }
-    .search-btn {
-      padding: 0.75rem 1.5rem;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border: none;
-      border-radius: 8px;
-      color: #fff;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-    .search-btn:hover {
-      opacity: 0.9;
-    }
-    .player-container {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 1rem;
-    }
-    .player-wrapper {
-      width: 100%;
-      max-width: 1200px;
-      aspect-ratio: 16/9;
-      background: #111;
-      border-radius: 12px;
-      overflow: hidden;
-      position: relative;
-    }
-    .player-wrapper iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-    }
-    .placeholder {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-      color: #666;
-    }
-    .placeholder-icon {
-      font-size: 4rem;
-      margin-bottom: 1rem;
-    }
-    .sources-list {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 0.75rem;
-      padding: 1rem;
-      max-width: 800px;
-      margin: 0 auto;
-    }
-    .source-btn {
-      padding: 0.5rem 1rem;
-      background: #1a1a1a;
-      border: 1px solid #333;
-      border-radius: 8px;
-      color: #fff;
-      cursor: pointer;
-      transition: all 0.2s;
-      font-size: 0.875rem;
-    }
-    .source-btn:hover {
-      background: #333;
-      border-color: #667eea;
-    }
-    .source-btn.active {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-color: transparent;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ультра Видео Агрегатор + Стриминг</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #050714; color: #fff; min-height: 100vh; overflow-x: hidden; }
+        body::before { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at 10% 20%, rgba(91, 121, 236, 0.2), transparent 40%), radial-gradient(circle at 90% 80%, rgba(255, 87, 108, 0.2), transparent 40%); pointer-events: none; z-index: 0; }
+        .container { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        header { text-align: center; padding: 40px 0; }
+        h1 { font-size: 3em; margin-bottom: 10px; background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; }
+        
+        .input-section { background: rgba(255,255,255,0.05); padding: 25px; border-radius: 20px; margin-bottom: 30px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(15px); }
+        .input-group { display: flex; gap: 10px; }
+        input[type="text"] { flex: 1; padding: 15px; border: none; border-radius: 12px; background: rgba(255,255,255,0.9); color: #000; font-size: 16px; outline: none; }
+        .btn-add { padding: 0 30px; border: none; border-radius: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; font-weight: bold; cursor: pointer; transition: 0.3s; }
+
+        .video-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .video-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); border-radius: 18px; overflow: hidden; cursor: pointer; transition: 0.4s; position: relative; }
+        .video-card:hover { transform: translateY(-5px); background: rgba(255,255,255,0.08); }
+        .video-thumbnail { width: 100%; aspect-ratio: 16/9; background: #121421; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 2.5em; }
+        .platform-tag { font-size: 12px; margin-top: 8px; font-weight: bold; opacity: 0.5; text-transform: uppercase; }
+        
+        .delete-btn { position: absolute; top: 10px; right: 10px; background: rgba(255,0,0,0.3); color: #fff; border: none; width: 30px; height: 30px; border-radius: 50%; z-index: 5; cursor: pointer; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 2000; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { width: 100%; max-width: 1200px; aspect-ratio: 16/9; position: relative; }
+        
+        .player-viewport { position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; border-radius: 8px; }
+
+        /* ИСПРАВЛЕННЫЙ КРОП: скрываем плееры всех платформ */
+        iframe { 
+            position: absolute; 
+            border: none; 
+            visibility: hidden;
+            /* Растягиваем и сдвигаем, чтобы убрать элементы интерфейса */
+            top: -15%; 
+            left: -2%; 
+            width: 104%; 
+            height: 130%; 
+        }
+        
+        /* Специальный усиленный кроп для YouTube/Rutube */
+        .crop-ultra iframe {
+            top: -18%; 
+            left: -5%; 
+            width: 110%; 
+            height: 140%;
+        }
+
+        iframe.visible { visibility: visible; }
+
+        .close-modal { position: absolute; top: -50px; right: 0; background: none; border: none; color: #fff; font-size: 3em; cursor: pointer; }
+
+        .ad-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: none; z-index: 100; flex-direction: column; align-items: center; justify-content: center; }
+        .ad-layer.active { display: flex; }
+        .ad-video { width: 100%; height: 100%; object-fit: contain; }
+        .ad-status { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.8); padding: 10px 20px; border-radius: 5px; font-weight: bold; }
+        .ad-btns { position: absolute; bottom: 30px; right: 30px; display: flex; gap: 15px; pointer-events: auto; }
+        .ad-btn { background: #fff; color: #000; padding: 12px 24px; border-radius: 5px; font-weight: 800; cursor: pointer; border: none; }
+        .skip-btn { display: none; background: #333; color: #fff; }
+        .skip-btn.show { display: block; }
+    </style>
 </head>
 <body>
-  <div class="header">
-    <h1>🎬 Ultra Aggregator</h1>
-  </div>
-  
-  <div class="search-container">
-    <div class="search-box">
-      <input 
-        type="text" 
-        class="search-input" 
-        id="searchInput" 
-        placeholder="Введите домен или название для поиска..."
-      />
-      <button class="search-btn" onclick="search()">Найти</button>
+    <div class="container">
+        <header>
+            <h1>Ультра Агрегатор</h1>
+            <p style="opacity:0.5;">Twitch • Kick • VK Live • YouTube • Rutube • Direct Links</p>
+			FAQ - Для того чтобы встроить на платформу StreamLiveTV или другую любую нужно в адресной строке в конце поставить ?watch=Домен сервиса видео и запуститься видео для встраивания на сайт
+        </header>
+
+        <div class="input-section">
+            <div class="input-group">
+                <input type="text" id="videoUrl" placeholder="Вставь ссылку на видео или стрим..." />
+                <button class="btn-add" onclick="addVideo()">Добавить</button>
+            </div>
+        </div>
+
+        <div class="video-list" id="videoList"></div>
     </div>
-  </div>
 
-  <div class="sources-list" id="sourcesList">
-    <button class="source-btn" data-source="hdrezka">HDRezka</button>
-    <button class="source-btn" data-source="kinogo">Kinogo</button>
-    <button class="source-btn" data-source="filmix">Filmix</button>
-    <button class="source-btn" data-source="lordfilm">LordFilm</button>
-    <button class="source-btn" data-source="seasonvar">Seasonvar</button>
-    <button class="source-btn" data-source="kinokrad">Kinokrad</button>
-  </div>
-
-  <div class="player-container">
-    <div class="player-wrapper" id="playerWrapper">
-      <div class="placeholder" id="placeholder">
-        <div class="placeholder-icon">🎬</div>
-        <p>Введите запрос или выберите источник</p>
-      </div>
+    <div class="modal" id="videoModal">
+        <div class="modal-content">
+            <div class="player-viewport" id="viewport">
+                <div class="ad-layer" id="adLayer">
+                    <video class="ad-video" id="adVid" playsinline></video>
+                    <div class="ad-status" id="adCounter">Реклама</div>
+                    <div class="ad-btns">
+                        <button class="ad-btn" id="unmuteAd" onclick="unmuteAd()">🔊 Звук</button>
+                        <button class="ad-btn skip-btn" id="skipAd" onclick="skipAd()">Пропустить ▶</button>
+                    </div>
+                </div>
+                <iframe id="vPlayer" allow="autoplay; fullscreen; picture-in-picture"></iframe>
+            </div>
+        </div>
     </div>
-  </div>
 
-  <script>
-    const playerWrapper = document.getElementById('playerWrapper');
-    const placeholder = document.getElementById('placeholder');
-    const searchInput = document.getElementById('searchInput');
-    const sourceButtons = document.querySelectorAll('.source-btn');
+    <script>
+        // СПИСОК РЕКЛАМЫ (10 слотов)
+        const AD_URLS = [
+            'https://fkveoqzztgwdeayaqixv.supabase.co/storage/v1/object/public/videos/aa75a652-5aaa-4673-a7ca-e693a76eba89/1764128171130.mp4',
+            'https://fkveoqzztgwdeayaqixv.supabase.co/storage/v1/object/public/videos/aa75a652-5aaa-4673-a7ca-e693a76eba89/1764128171130.mp4',
+            'https://fkveoqzztgwdeayaqixv.supabase.co/storage/v1/object/public/videos/aa75a652-5aaa-4673-a7ca-e693a76eba89/1764128171130.mp4',
+            'https://www.dropbox.com/scl/fi/x4m5zyuljblncremkn935/.mp4?rlkey=d7onlggzeenjrbedx9svq8532&st=sx4467mr&dl=1',
+            'https://www.dropbox.com/scl/fi/x4m5zyuljblncremkn935/.mp4?rlkey=d7onlggzeenjrbedx9svq8532&st=sx4467mr&dl=1',
+            'https://www.dropbox.com/scl/fi/x4m5zyuljblncremkn935/.mp4?rlkey=d7onlggzeenjrbedx9svq8532&st=sx4467mr&dl=1',
+            'https://www.dropbox.com/scl/fi/to5eki6hexfq8cfik3fyc/b40f38171014492bb9eb619319edfca0.mp4?rlkey=pky0rhlnh48wx1m3ex2qvwp0v&st=ygr0bdq5&dl=1',
+            'https://www.dropbox.com/scl/fi/to5eki6hexfq8cfik3fyc/b40f38171014492bb9eb619319edfca0.mp4?rlkey=pky0rhlnh48wx1m3ex2qvwp0v&st=ygr0bdq5&dl=1',
+            'https://www.dropbox.com/scl/fi/x4m5zyuljblncremkn935/.mp4?rlkey=d7onlggzeenjrbedx9svq8532&st=sx4467mr&dl=1',
+            'https://www.dropbox.com/scl/fi/x4m5zyuljblncremkn935/.mp4?rlkey=d7onlggzeenjrbedx9svq8532&st=sx4467mr&dl=1'
+        ];
 
-    // Check URL params on load
-    const urlParams = new URLSearchParams(window.location.search);
-    const watchParam = urlParams.get('watch');
-    if (watchParam) {
-      searchInput.value = watchParam;
-      search();
-    }
+        let savedVideos = [];
+        let adQueue = 0;
+        let totalAdsRequested = 0;
+        let midRoll = null;
 
-    function search() {
-      const query = searchInput.value.trim();
-      if (!query) return;
-
-      // Try to detect if it's a direct URL
-      let embedUrl;
-      if (query.includes('http://') || query.includes('https://')) {
-        embedUrl = query;
-      } else if (query.includes('.')) {
-        // Looks like a domain
-        embedUrl = `https://${query}`;
-      } else {
-        // Search query - use a search aggregator
-        embedUrl = `https://www.google.com/search?q=${encodeURIComponent(query + ' смотреть онлайн')}&igu=1`;
-      }
-
-      loadPlayer(embedUrl);
-    }
-
-    function loadPlayer(url) {
-      placeholder.style.display = 'none';
-      
-      const existingIframe = playerWrapper.querySelector('iframe');
-      if (existingIframe) {
-        existingIframe.remove();
-      }
-
-      const iframe = document.createElement('iframe');
-      iframe.src = url;
-      iframe.allow = 'fullscreen; autoplay; encrypted-media';
-      iframe.allowFullscreen = true;
-      iframe.sandbox = 'allow-scripts allow-same-origin allow-popups allow-forms';
-      
-      playerWrapper.appendChild(iframe);
-    }
-
-    sourceButtons.forEach(btn => {
-      btn.addEventListener('click', function() {
-        sourceButtons.forEach(b => b.classList.remove('active'));
-        this.classList.add('active');
-        
-        const source = this.dataset.source;
-        const urls = {
-          hdrezka: 'https://hdrezka.ag',
-          kinogo: 'https://kinogo.inc',
-          filmix: 'https://filmix.fm',
-          lordfilm: 'https://lordfilm.gg',
-          seasonvar: 'https://seasonvar.ru',
-          kinokrad: 'https://kinokrad.co'
-        };
-        
-        if (urls[source]) {
-          loadPlayer(urls[source]);
+        function init() {
+            const data = localStorage.getItem('ultra_agg_v5');
+            if (data) { savedVideos = JSON.parse(data); render(); }
+            
+            const urlParam = new URLSearchParams(window.location.search).get('watch');
+            if (urlParam) {
+                const newVid = parseLink(urlParam);
+                if (newVid) {
+                    savedVideos.unshift(newVid);
+                    save(); render();
+                    startPlayback(newVid.id);
+                }
+            }
         }
-      });
-    });
 
-    searchInput.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
-        search();
-      }
-    });
-  </script>
+        function save() { localStorage.setItem('ultra_agg_v5', JSON.stringify(savedVideos)); }
+
+        function parseLink(url) {
+            let p = 'link', embed = '', crop = 'standard';
+            if (url.includes('twitch.tv')) {
+                p = 'twitch';
+                let id = url.split('/').pop().split('?')[0];
+                embed = `https://player.twitch.tv/?channel=${id}&parent=oinktech.blyz.ru&autoplay=true`;
+            } 
+            else if (url.includes('kick.com')) {
+                p = 'kick';
+                let id = url.split('/').pop().split('?')[0];
+                embed = `https://player.kick.com/${id}&parent=oinktech.blyz.ru`;
+            }
+			else if (url.includes('w.tv')) {
+                p = 'wtv';
+                let id = url.split('/').pop().split('?')[0];
+                embed = `https://w.tv/${id}&parent=oinktech.blyz.ru`;
+            }
+		    else if (url.includes('matreshka.tv')) {
+                p = 'mattv';
+                let id = url.split('/').pop().split('?')[0];
+                embed = `https://matreshka.tv/en/embed/${id}?autoplay=1&mute=0&parent=oinktech.blyz.ru`;
+            }
+		   else if (url.includes('plvideo.ru')) {
+                p = 'plvideo';
+                let id = url.split('/').pop().split('?')[0];
+                embed = `https://plvideo.ru/embed/${id}&parent=oinktech.blyz.ru`;
+            }
+		    else if (url.includes('catcast.tv')) {
+                p = 'ctv';
+                let id = url.split('/').pop().split('?')[0];
+                embed = `https://catcast.tv/${id}&parent=oinktech.blyz.ru`;
+            }
+			   else if (url.includes('dzen.ru')) {
+                p = 'dzenvk';
+                let id = url.split('/').pop().split('?')[0];
+                embed = `https://dzen.ru/embed/${id}?autoplay=1&mute=0&parent=oinktech.blyz.ru`;
+            }
+					   else if (url.includes('vimeo.com')) {
+                p = 'Vimeo';
+                let id = url.split('/').pop().split('?')[0];
+                embed = `https://player.vimeo.com/video/${id}?autoplay=1&mute=0&parent=oinktech.blyz.ru`;
+            }
+			else if (url.includes('www.dailymotion.com')) {
+                p = 'dailymotion';
+                let id = url.split('/').pop().split('?')[0];
+                embed = `https://www.dailymotion.com/embed/video/${id}?autoplay=1&mute=0&parent=oinktech.blyz.ru`;
+            }
+			else if (url.includes('livestudio-creator.lovable.app')) {
+                p = 'StreamLiveTV';
+                let id = url.split('/').pop().split('?')[0];
+                embed = `https://livestudio-creator.lovable.app/embed/${id}?autoplay=1&mute=0&parent=oinktech.blyz.ru`;
+            }
+			else if (url.includes('live.vkvideo.ru')) {
+            p = 'vktv';
+            let id = url.split('/').pop().split('?')[0];
+            embed = `https://live.vkvideo.ru/embed/${id}&parent=oinktech.blyz.ru`;
+            }
+            else if (url.includes('vkvideo.ru') || url.includes('vk.com') || url.includes('vk.ru')) {
+                p = 'vk_video';
+                let m = url.match(/video(-?\d+_\d+)/);
+                if (m) embed = `https://vk.com/video_ext.php?oid=${m[1].split('_')[0]}&id=${m[1].split('_')[1]}&autoplay=1&parent=oinktech.blyz.ru`;
+            }
+            else if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                p = 'youtube'; crop = 'ultra';
+                let id = url.match(/(?:v=|\/)([a-zA-Z0-9_-]{11})/)?.[1];
+                embed = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&controls=0&modestbranding=1&rel=0&parent=oinktech.blyz.ru`;
+            }
+            else if (url.includes('rutube.ru')) {
+                p = 'rutube'; crop = 'ultra';
+                let id = url.match(/\/video\/([a-f0-9]+)/)?.[1];
+                embed = `https://rutube.ru/play/embed/${id}?autoplay=1&mute=0&skinColor=00000000&parent=oinktech.blyz.ru`;
+            }
+            else { p = 'generic'; embed = url; }
+            return embed ? { id: Date.now(), platform: p, url: embed, crop: crop } : null;
+        }
+
+        function addVideo() {
+            const val = document.getElementById('videoUrl').value.trim();
+            const vid = parseLink(val);
+            if (!vid) return alert('Не удалось распознать ссылку');
+            savedVideos.unshift(vid); save(); render();
+            document.getElementById('videoUrl').value = '';
+        }
+
+        function render() {
+            const list = document.getElementById('videoList');
+            const icons = { twitch:'🎮', kick:'🟢', vk_video:'🎥', youtube:'📹', rutube:'📺', generic:'🔗' };
+            list.innerHTML = savedVideos.map(v => `
+                <div class="video-card" onclick="startPlayback(${v.id})">
+                    <button class="delete-btn" onclick="event.stopPropagation();del(${v.id})">✕</button>
+                    <div class="video-thumbnail">
+                        ${icons[v.platform] || '🎞️'}
+                        <div class="platform-tag">${v.platform}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function del(id) { savedVideos = savedVideos.filter(v => v.id !== id); save(); render(); }
+
+        function startPlayback(id) {
+            const v = savedVideos.find(x => x.id === id);
+            const modal = document.getElementById('videoModal');
+            const iframe = document.getElementById('vPlayer');
+            const view = document.getElementById('viewport');
+
+            modal.classList.add('active');
+            iframe.classList.remove('visible');
+            iframe.src = v.url;
+
+            // Применяем кроп
+            view.className = 'player-viewport';
+            if (v.crop === 'ultra') view.classList.add('crop-ultra');
+
+            launchAds(5); 
+
+            if (midRoll) clearInterval(midRoll);
+            midRoll = setInterval(() => launchAds(5), 900000); 
+        }
+
+        function launchAds(count) {
+            adQueue = count;
+            totalAdsRequested = count;
+            playAdStep();
+        }
+
+        function playAdStep() {
+            const layer = document.getElementById('adLayer');
+            const vid = document.getElementById('adVid');
+            const iframe = document.getElementById('vPlayer');
+            const skip = document.getElementById('skipAd');
+            const counter = document.getElementById('adCounter');
+
+            if (adQueue <= 0) {
+                layer.classList.remove('active');
+                vid.src = '';
+                iframe.classList.add('visible');
+                return;
+            }
+
+            iframe.classList.remove('visible');
+            layer.classList.add('active');
+            skip.classList.remove('show');
+            counter.textContent = `Реклама: ${totalAdsRequested - adQueue + 1} из ${totalAdsRequested}`;
+
+            vid.src = AD_URLS[Math.floor(Math.random() * AD_URLS.length)];
+            vid.muted = false;
+            vid.play().catch(() => {
+                vid.muted = true;
+                vid.play();
+                document.getElementById('unmuteAd').style.display = 'block';
+            });
+
+            setTimeout(() => skip.classList.add('show'), 5000);
+            vid.onended = () => { adQueue--; playAdStep(); };
+        }
+
+        function skipAd() { adQueue--; playAdStep(); }
+
+        function unmuteAd() {
+            document.getElementById('adVid').muted = false;
+            document.getElementById('unmuteAd').style.display = 'none';
+        }
+
+        function closeModal() {
+            document.getElementById('videoModal').classList.remove('active');
+            document.getElementById('vPlayer').src = '';
+            document.getElementById('adVid').src = '';
+            adQueue = 0;
+            if (midRoll) clearInterval(midRoll);
+        }
+
+        window.onload = init;
+    </script>
 </body>
 </html>

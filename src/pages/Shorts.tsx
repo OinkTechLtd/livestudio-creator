@@ -32,6 +32,8 @@ interface Channel {
   is_live: boolean;
   viewer_count: number;
   user_id: string;
+  created_at: string;
+  category_id?: string | null;
   profiles: {
     username: string;
     avatar_url: string | null;
@@ -105,7 +107,7 @@ const Shorts = () => {
     const { data, error } = await supabase
       .from("channels")
       .select(`
-        id, title, description, thumbnail_url, channel_type, is_live, viewer_count, user_id,
+        id, title, description, thumbnail_url, channel_type, is_live, viewer_count, user_id, created_at, category_id,
         profiles:user_id (username, avatar_url)
       `)
       .eq("is_hidden", false)
@@ -130,13 +132,34 @@ const Shorts = () => {
       }
       setMediaByChannel(mediaMap);
 
-      // DEDUPLICATION FILTER
+      // DEDUPLICATION FILTER (priority: OinkTech/Twixoff originals first, then oldest)
+      // 1) Prefer protected owners (OinkTech / Twixoff)
+      // 2) Prefer earliest created_at
+      // 3) Then higher viewer_count
+      const protectedOwners = new Set(["oinktech", "twixoff"]);
+
+      const prioritize = (ch: any) => {
+        const username = (ch?.profiles?.username || "").toLowerCase().trim();
+        const isProtected = Array.from(protectedOwners).some((p) => username === p || username.startsWith(p));
+        const createdAt = ch?.created_at ? new Date(ch.created_at).getTime() : Number.MAX_SAFE_INTEGER;
+        const viewers = ch?.viewer_count ?? 0;
+        return { isProtected, createdAt, viewers };
+      };
+
+      const prioritized = [...(data as any[])].sort((a, b) => {
+        const pa = prioritize(a);
+        const pb = prioritize(b);
+        if (pa.isProtected !== pb.isProtected) return pa.isProtected ? -1 : 1;
+        if (pa.createdAt !== pb.createdAt) return pa.createdAt - pb.createdAt;
+        return pb.viewers - pa.viewers;
+      });
+
       // 1. Remove duplicates by title + type
       // 2. Remove duplicates by source URL
       const seenTitles = new Set<string>();
       const seenSources = new Set<string>();
       
-      const filteredChannels = (data as any[]).filter((ch) => {
+      const filteredChannels = prioritized.filter((ch) => {
         // Skip channels without description (low quality)
         // Commented out per user request - only filter duplicates
         // if (!ch.description || ch.description.trim().length < 5) return false;
@@ -164,7 +187,7 @@ const Shorts = () => {
       });
 
       // Sort by relevance (viewed categories first, then by viewer count)
-      const sortedChannels = filteredChannels.sort((a, b) => {
+      const sortedChannels = filteredChannels.sort((a: any, b: any) => {
         const aRelevance = viewedCategories.filter(c => c === a.category_id).length;
         const bRelevance = viewedCategories.filter(c => c === b.category_id).length;
         if (aRelevance !== bRelevance) return bRelevance - aRelevance;

@@ -5,11 +5,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import YouTubeIFramePlayer from "./YouTubeIFramePlayer";
 
-const ULTRA_AGGREGATOR_URLS = [
-  "/ultra-aggregator.html",
-  "https://raw.githack.com/OinkTechLtd/Services-OinkPlatforms/main/video_aggregator%20(2)%20—%20копия%20—%20копия.html",
-  "https://html-preview.github.io/?url=https://github.com/OinkTechLtd/Services-OinkPlatforms/blob/main/video_aggregator%20(2)%20—%20копия%20—%20копия.html",
-];
+const ULTRA_AGGREGATOR_PATH = "/ultra-aggregator.html";
 
 export type SourceType = "mp4" | "m3u8" | "youtube" | "ultra_aggregator" | "upload" | "external_url" | "torrent";
 
@@ -43,7 +39,6 @@ const UniversalPlayer = ({
   const hlsRef = useRef<Hls | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [error, setError] = useState<string | null>(null);
-  const [currentMirror, setCurrentMirror] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [proxyUrl, setProxyUrl] = useState<string | null>(null);
 
@@ -94,8 +89,12 @@ const UniversalPlayer = ({
 
   // HLS / MP4 / Audio playback
   useEffect(() => {
-    if (actualType === "youtube" || actualType === "ultra_aggregator") {
+    if (actualType === "youtube") {
       setIsLoading(false);
+      return;
+    }
+    if (actualType === "ultra_aggregator") {
+      // iframe handles its own loading state
       return;
     }
 
@@ -187,18 +186,17 @@ const UniversalPlayer = ({
     };
   }, [src, actualType, autoPlay, useProxy, channelType, getProxiedUrl]);
 
-  const tryNextMirror = () => {
-    if (currentMirror < ULTRA_AGGREGATOR_URLS.length - 1) {
-      setCurrentMirror(currentMirror + 1);
-      setError(null);
-    }
-  };
-
   const retry = () => {
     setError(null);
-    setCurrentMirror(0);
     setIsLoading(true);
   };
+
+  useEffect(() => {
+    if (actualType === "ultra_aggregator") {
+      setError(null);
+      setIsLoading(true);
+    }
+  }, [actualType, src]);
 
   // YouTube Player - Using YouTube IFrame Player API
   if (actualType === "youtube") {
@@ -229,17 +227,23 @@ const UniversalPlayer = ({
 
   // Ultra Aggregator Player - ALWAYS iframe (like website)
   if (actualType === "ultra_aggregator") {
-    // Parse watch parameter
-    let watchParam = "";
-    if (src.includes("?watch=")) {
-      watchParam = src.split("?watch=")[1];
-    } else if (src && src !== "ultra_aggregator" && !src.startsWith("http") && !src.startsWith("/")) {
-      watchParam = src;
+    // Pass ALL query params via the iframe address bar (1:1 behavior)
+    // If src already has ?params, forward them to /ultra-aggregator.html
+    // Otherwise, treat src as watch value.
+    let iframeSrc = ULTRA_AGGREGATOR_PATH;
+    try {
+      const u = new URL(src, window.location.origin);
+      const forwarded = `${u.search || ""}${u.hash || ""}`;
+      if (forwarded) {
+        iframeSrc = `${ULTRA_AGGREGATOR_PATH}${forwarded}`;
+      } else if (src && src !== "ultra_aggregator" && !src.startsWith("http") && !src.startsWith("/")) {
+        iframeSrc = `${ULTRA_AGGREGATOR_PATH}?watch=${encodeURIComponent(src)}`;
+      }
+    } catch {
+      if (src && src !== "ultra_aggregator") {
+        iframeSrc = `${ULTRA_AGGREGATOR_PATH}?watch=${encodeURIComponent(src)}`;
+      }
     }
-
-    const iframeSrc = watchParam
-      ? `${ULTRA_AGGREGATOR_URLS[currentMirror]}?watch=${encodeURIComponent(watchParam)}`
-      : ULTRA_AGGREGATOR_URLS[currentMirror];
 
     return (
       <div className={`aspect-video bg-black rounded-lg overflow-hidden relative ${className}`}>
@@ -259,12 +263,8 @@ const UniversalPlayer = ({
           sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-presentation"
           onLoad={() => setIsLoading(false)}
           onError={() => {
-            if (currentMirror < ULTRA_AGGREGATOR_URLS.length - 1) {
-              tryNextMirror();
-            } else {
-              setError("Все зеркала недоступны");
-              setIsLoading(false);
-            }
+            setError("Ultra Aggregator недоступен");
+            setIsLoading(false);
           }}
         />
         {error && (
@@ -280,19 +280,13 @@ const UniversalPlayer = ({
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={() => window.open(ULTRA_AGGREGATOR_URLS[0], '_blank')}
+                  onClick={() => window.open(ULTRA_AGGREGATOR_PATH, '_blank')}
                 >
                   <ExternalLink className="w-4 h-4 mr-2" />
                   Открыть отдельно
                 </Button>
               </div>
             </div>
-          </div>
-        )}
-        {/* Mirror indicator */}
-        {currentMirror > 0 && !error && (
-          <div className="absolute bottom-2 right-2 bg-background/80 px-2 py-1 rounded text-xs">
-            Зеркало {currentMirror + 1}/{ULTRA_AGGREGATOR_URLS.length}
           </div>
         )}
       </div>
