@@ -197,12 +197,15 @@ const AdManager = ({ channelId, channelType }: AdManagerProps) => {
     try {
       const { error } = await supabase
         .from("ad_settings")
-        .upsert({
-          channel_id: channelId,
-          interval_minutes: intervalMinutes,
-          is_enabled: isEnabled,
-          updated_at: new Date().toISOString(),
-        });
+        .upsert(
+          {
+            channel_id: channelId,
+            interval_minutes: intervalMinutes,
+            is_enabled: isEnabled,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "channel_id" }
+        );
 
       if (error) throw error;
 

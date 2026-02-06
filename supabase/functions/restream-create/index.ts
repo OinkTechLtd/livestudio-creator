@@ -134,21 +134,30 @@ serve(async (req) => {
     }
 
     // Generate OAuth URL for Restream
-    // Redirect back into the app (NOT the backend function URL) to avoid exposing internal URLs
-    // and to keep redirect_uri stable for Restream settings.
+    // Redirect back into the app to avoid exposing internal URLs
     const state = `${channelId}`;
+
+    // Use a fixed, predictable redirect_uri so it always matches Restream Developer settings
+    const PUBLISHED_ORIGIN = "https://livestudio-creator.lovable.app";
+    const PREVIEW_ORIGIN = "https://id-preview--407341cb-1604-43ec-8920-e0503e40edba.lovable.app";
 
     const originHeader = req.headers.get("origin") || "";
     const refererHeader = req.headers.get("referer") || "";
     const fallbackOrigin = refererHeader ? new URL(refererHeader).origin : "";
-    const appOrigin = originHeader || fallbackOrigin;
+    const requestOrigin = originHeader || fallbackOrigin;
 
-    if (!appOrigin) {
-      throw new Error("Missing request origin (cannot build redirect_uri)");
+    // Pick the redirect_uri that matches the current origin; default to published
+    let appOrigin = PUBLISHED_ORIGIN;
+    if (requestOrigin && requestOrigin.includes("id-preview")) {
+      appOrigin = PREVIEW_ORIGIN;
+    } else if (requestOrigin) {
+      appOrigin = requestOrigin;
     }
 
     const redirectUri = `${appOrigin.replace(/\/$/, "")}/restream/callback`;
     
+    console.log("Using redirect_uri:", redirectUri);
+
     const oauthUrl = `https://api.restream.io/login?response_type=code&client_id=${RESTREAM_CLIENT_ID}&redirect_uri=${encodeURIComponent(
       redirectUri,
     )}&state=${encodeURIComponent(state)}`;

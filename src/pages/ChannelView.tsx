@@ -127,6 +127,7 @@ const ChannelView = () => {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [useProxy, setUseProxy] = useState(false);
   const [manualStreamKey, setManualStreamKey] = useState("");
+  const [viewerPoints, setViewerPoints] = useState(0);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -148,12 +149,24 @@ const ChannelView = () => {
     if (user) {
       checkStorageUsage();
       fetchUserRole();
+      fetchViewerPoints();
     }
     trackView();
     // Load proxy setting
     const savedProxy = localStorage.getItem(`channel_proxy_${id}`);
     if (savedProxy) setUseProxy(savedProxy === "true");
   }, [id, user]);
+
+  const fetchViewerPoints = async () => {
+    if (!user || !id) return;
+    const { data } = await supabase
+      .from("channel_points")
+      .select("points")
+      .eq("channel_id", id)
+      .eq("user_id", user.id)
+      .single();
+    if (data) setViewerPoints(data.points);
+  };
 
   // Subscribe to playback state changes for sync
   useEffect(() => {
@@ -1066,13 +1079,13 @@ const ChannelView = () => {
 
           <TabsContent value="subscriptions" className="mt-4 md:mt-6">
             <div className="bg-card border border-border rounded-lg p-4 md:p-6">
-              <PremiumSubscriptions channelId={channel.id} isOwner={isOwner} />
+              <PremiumSubscriptions channelId={channel.id} isOwner={isOwner} userPoints={viewerPoints} onPointsChange={fetchViewerPoints} />
             </div>
           </TabsContent>
 
           <TabsContent value="roulette" className="mt-4 md:mt-6">
             <div className="bg-card border border-border rounded-lg p-4 md:p-6">
-              <ChannelRoulette channelId={channel.id} isOwner={isOwner} />
+              <ChannelRoulette channelId={channel.id} isOwner={isOwner} userPoints={viewerPoints} onPointsChange={fetchViewerPoints} />
             </div>
           </TabsContent>
 
