@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search as SearchIcon, Tv, Radio } from "lucide-react";
+import { useShortsRecommendations } from "@/hooks/useShortsRecommendations";
 
 interface Channel {
   id: string;
@@ -25,6 +26,7 @@ const Search = () => {
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(false);
+  const { trackSearch } = useShortsRecommendations();
 
   useEffect(() => {
     const q = searchParams.get("q");
@@ -72,6 +74,7 @@ const Search = () => {
     e.preventDefault();
     if (query.trim()) {
       setSearchParams({ q: query });
+      trackSearch(query.trim());
     }
   };
 

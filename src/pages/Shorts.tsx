@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import UniversalPlayer, { SourceType } from "@/components/UniversalPlayer";
+import DataConsentBanner from "@/components/DataConsentBanner";
+import { useShortsRecommendations } from "@/hooks/useShortsRecommendations";
 
 interface Channel {
   id: string;
@@ -58,6 +60,24 @@ interface ChatMessage {
   };
 }
 
+// Garbage description patterns - filter these out
+const GARBAGE_DESCRIPTIONS = new Set([
+  "да", "нет", "тест", "test", "канал", "channel", ".", "..", "...",
+  "описание", "description", "1", "2", "3", "а", "б", "в",
+  "-", "--", "---", "ок", "ok", "хз", "лол", "lol", "asd",
+  "asdf", "qwerty", "123", "1234", "12345",
+]);
+
+function isGarbageDescription(desc: string | null): boolean {
+  if (!desc) return true;
+  const trimmed = desc.trim();
+  if (trimmed.length < 5) return true;
+  if (GARBAGE_DESCRIPTIONS.has(trimmed.toLowerCase())) return true;
+  // All same character
+  if (/^(.)\1*$/.test(trimmed)) return true;
+  return false;
+}
+
 const Shorts = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -78,6 +98,14 @@ const Shorts = () => {
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
 
+  const {
+    showConsentBanner,
+    acceptConsent,
+    declineConsent,
+    trackView,
+    scoreChannel,
+  } = useShortsRecommendations();
+
   // Fetch channels with AI recommendation logic
   useEffect(() => {
     fetchChannels();
@@ -86,23 +114,6 @@ const Shorts = () => {
   const fetchChannels = async () => {
     setLoading(true);
     
-    // Get user's viewing history for recommendations
-    let viewedCategories: string[] = [];
-    if (user) {
-      const { data: views } = await supabase
-        .from("channel_views")
-        .select("channel_id, channels(category_id)")
-        .eq("viewer_id", user.id)
-        .order("viewed_at", { ascending: false })
-        .limit(50);
-      
-      if (views) {
-        viewedCategories = views
-          .map((v: any) => v.channels?.category_id)
-          .filter(Boolean);
-      }
-    }
-
     // Fetch all active channels (not hidden)
     const { data, error } = await supabase
       .from("channels")
@@ -133,9 +144,6 @@ const Shorts = () => {
       setMediaByChannel(mediaMap);
 
       // DEDUPLICATION FILTER (priority: OinkTech/Twixoff originals first, then oldest)
-      // 1) Prefer protected owners (OinkTech / Twixoff)
-      // 2) Prefer earliest created_at
-      // 3) Then higher viewer_count
       const protectedOwners = new Set(["oinktech", "twixoff"]);
 
       const prioritize = (ch: any) => {
@@ -156,41 +164,37 @@ const Shorts = () => {
 
       // 1. Remove duplicates by title + type
       // 2. Remove duplicates by source URL
+      // 3. Remove garbage descriptions
       const seenTitles = new Set<string>();
       const seenSources = new Set<string>();
       
       const filteredChannels = prioritized.filter((ch) => {
-        // Skip channels without description (low quality)
-        // Commented out per user request - only filter duplicates
-        // if (!ch.description || ch.description.trim().length < 5) return false;
-        
+        // Filter garbage descriptions
+        if (isGarbageDescription(ch.description)) return false;
+
         // Check title duplicate (normalize: lowercase, trim)
         const titleKey = `${ch.title?.toLowerCase().trim()}|${ch.channel_type}`;
-        if (seenTitles.has(titleKey)) {
-          console.log("Filtering duplicate by title:", ch.title);
-          return false;
-        }
+        if (seenTitles.has(titleKey)) return false;
         seenTitles.add(titleKey);
         
         // Check source URL duplicate
         const channelMedia = mediaMap[ch.id] || [];
         for (const media of channelMedia) {
           const sourceKey = media.file_url?.toLowerCase().trim();
-          if (sourceKey && seenSources.has(sourceKey)) {
-            console.log("Filtering duplicate by source:", ch.title, media.file_url);
-            return false;
-          }
+          if (sourceKey && seenSources.has(sourceKey)) return false;
           if (sourceKey) seenSources.add(sourceKey);
         }
         
         return true;
       });
 
-      // Sort by relevance (viewed categories first, then by viewer count)
+      // Sort by personalized recommendations + viewer count
       const sortedChannels = filteredChannels.sort((a: any, b: any) => {
-        const aRelevance = viewedCategories.filter(c => c === a.category_id).length;
-        const bRelevance = viewedCategories.filter(c => c === b.category_id).length;
-        if (aRelevance !== bRelevance) return bRelevance - aRelevance;
+        const aScore = scoreChannel(a);
+        const bScore = scoreChannel(b);
+        // Primary: recommendation score
+        if (aScore !== bScore) return bScore - aScore;
+        // Secondary: viewer count
         return (b.viewer_count || 0) - (a.viewer_count || 0);
       });
       
@@ -199,6 +203,14 @@ const Shorts = () => {
     
     setLoading(false);
   };
+
+  // Track views for recommendations
+  useEffect(() => {
+    const ch = channels[currentIndex];
+    if (ch) {
+      trackView(ch.id, ch.category_id || null, ch.channel_type, ch.title);
+    }
+  }, [currentIndex, channels, trackView]);
 
   // Fetch user likes
   useEffect(() => {
@@ -225,13 +237,12 @@ const Shorts = () => {
     if (channels[currentIndex]) {
       fetchChatMessages(channels[currentIndex].id);
       const unsubscribe = subscribeToChat(channels[currentIndex].id);
-      // Reset source index when switching to a new channel
       setCurrentSourceIndex(0);
       return unsubscribe;
     }
   }, [currentIndex, channels]);
 
-  // Auto-scroll chat to bottom when new messages arrive
+  // Auto-scroll chat to bottom
   useEffect(() => {
     if (!showChat) return;
     const el = chatListRef.current;
@@ -416,6 +427,11 @@ const Shorts = () => {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
+      {/* Consent Banner */}
+      {showConsentBanner && (
+        <DataConsentBanner onAccept={acceptConsent} onDecline={declineConsent} />
+      )}
+
       {/* Video Player - Full Screen */}
       <div className="absolute inset-0">
         {currentMedia ? (
