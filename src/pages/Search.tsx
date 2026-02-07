@@ -62,7 +62,21 @@ const Search = () => {
         .limit(50);
 
       if (error) throw error;
-      setChannels(data || []);
+      
+      // Sort: OinkTech/Twixoff first, then by viewer count
+      const protectedNames = new Set(["oinktech", "twixoff"]);
+      const sorted = (data || []).sort((a: any, b: any) => {
+        const aProtected = Array.from(protectedNames).some(p => 
+          (a.profiles?.username || "").toLowerCase().startsWith(p)
+        );
+        const bProtected = Array.from(protectedNames).some(p => 
+          (b.profiles?.username || "").toLowerCase().startsWith(p)
+        );
+        if (aProtected !== bProtected) return aProtected ? -1 : 1;
+        return (b.viewer_count || 0) - (a.viewer_count || 0);
+      });
+      
+      setChannels(sorted);
     } catch (error) {
       console.error("Error searching channels:", error);
     } finally {

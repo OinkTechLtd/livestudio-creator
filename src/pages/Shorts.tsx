@@ -18,7 +18,8 @@ import {
   X,
   Tv,
   Radio as RadioIcon,
-  Users
+  Users,
+  Eye
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import UniversalPlayer, { SourceType } from "@/components/UniversalPlayer";
@@ -60,22 +61,44 @@ interface ChatMessage {
   };
 }
 
-// Garbage description patterns - filter these out
+// Protected accounts that always take priority
+const PROTECTED_USERNAMES = new Set(["oinktech", "twixoff"]);
+
+// Garbage description patterns - filter these out aggressively
 const GARBAGE_DESCRIPTIONS = new Set([
   "да", "нет", "тест", "test", "канал", "channel", ".", "..", "...",
   "описание", "description", "1", "2", "3", "а", "б", "в",
   "-", "--", "---", "ок", "ok", "хз", "лол", "lol", "asd",
-  "asdf", "qwerty", "123", "1234", "12345",
+  "asdf", "qwerty", "123", "1234", "12345", "hello", "привет",
+  "мой канал", "my channel", "fff", "ааа", "yyy", "xxx", "zzz",
+  "new channel", "без названия", "untitled", "no description",
+  "lolol", "kek", "кек", "пук", "хех", "абв", "abc", "qqq",
+  "test channel", "тестовый", "тестовый канал",
 ]);
+
+// Garbage words that indicate low-quality if they are the ENTIRE description
+const GARBAGE_PATTERNS = [
+  /^(.)\1{2,}$/,        // All same character (ааа, !!!, etc.)
+  /^\d+$/,              // Only numbers
+  /^[^a-zA-Zа-яА-ЯёЁ]+$/,  // No letters at all
+  /^.{1,4}$/,           // Less than 5 characters
+  /^(ха|хе|хи|ло|ке){2,}$/i, // Repeated syllables like хахаха
+];
 
 function isGarbageDescription(desc: string | null): boolean {
   if (!desc) return true;
   const trimmed = desc.trim();
   if (trimmed.length < 5) return true;
   if (GARBAGE_DESCRIPTIONS.has(trimmed.toLowerCase())) return true;
-  // All same character
-  if (/^(.)\1*$/.test(trimmed)) return true;
+  for (const pattern of GARBAGE_PATTERNS) {
+    if (pattern.test(trimmed)) return true;
+  }
   return false;
+}
+
+function isProtectedUser(username: string): boolean {
+  const lower = username.toLowerCase().trim();
+  return Array.from(PROTECTED_USERNAMES).some(p => lower === p || lower.startsWith(p));
 }
 
 const Shorts = () => {
@@ -97,6 +120,8 @@ const Shorts = () => {
   const [likedChannels, setLikedChannels] = useState<Set<string>>(new Set());
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [currentSourceIndex, setCurrentSourceIndex] = useState(0);
+  const [liveViewerCounts, setLiveViewerCounts] = useState<Record<string, number>>({});
+  const [sessionId] = useState(() => `shorts-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
 
   const {
     showConsentBanner,
@@ -106,7 +131,7 @@ const Shorts = () => {
     scoreChannel,
   } = useShortsRecommendations();
 
-  // Fetch channels with AI recommendation logic
+  // Fetch channels with deduplication & recommendation logic
   useEffect(() => {
     fetchChannels();
   }, [user]);
@@ -114,7 +139,6 @@ const Shorts = () => {
   const fetchChannels = async () => {
     setLoading(true);
     
-    // Fetch all active channels (not hidden)
     const { data, error } = await supabase
       .from("channels")
       .select(`
@@ -125,7 +149,7 @@ const Shorts = () => {
       .order("viewer_count", { ascending: false });
 
     if (!error && data) {
-      // Fetch media for deduplication
+      // Fetch media for all channels
       const channelIds = (data as any[]).map(c => c.id);
       const { data: mediaData } = await supabase
         .from("media_content")
@@ -133,7 +157,6 @@ const Shorts = () => {
         .in("channel_id", channelIds)
         .order("created_at", { ascending: true });
 
-      // Build media map
       const mediaMap: Record<string, MediaContent[]> = {};
       if (mediaData) {
         mediaData.forEach((m: any) => {
@@ -143,62 +166,62 @@ const Shorts = () => {
       }
       setMediaByChannel(mediaMap);
 
-      // DEDUPLICATION FILTER (priority: OinkTech/Twixoff originals first, then oldest)
-      const protectedOwners = new Set(["oinktech", "twixoff"]);
-
-      const prioritize = (ch: any) => {
-        const username = (ch?.profiles?.username || "").toLowerCase().trim();
-        const isProtected = Array.from(protectedOwners).some((p) => username === p || username.startsWith(p));
-        const createdAt = ch?.created_at ? new Date(ch.created_at).getTime() : Number.MAX_SAFE_INTEGER;
-        const viewers = ch?.viewer_count ?? 0;
-        return { isProtected, createdAt, viewers };
-      };
-
-      const prioritized = [...(data as any[])].sort((a, b) => {
-        const pa = prioritize(a);
-        const pb = prioritize(b);
-        if (pa.isProtected !== pb.isProtected) return pa.isProtected ? -1 : 1;
-        if (pa.createdAt !== pb.createdAt) return pa.createdAt - pb.createdAt;
-        return pb.viewers - pa.viewers;
+      // DEDUPLICATION: protected accounts (OinkTech/Twixoff) ALWAYS come first
+      // Later duplicates by other users are REMOVED
+      const sorted = [...(data as any[])].sort((a, b) => {
+        const aProtected = isProtectedUser(a?.profiles?.username || "");
+        const bProtected = isProtectedUser(b?.profiles?.username || "");
+        if (aProtected !== bProtected) return aProtected ? -1 : 1;
+        // Then by oldest first (originals)
+        const aTime = new Date(a.created_at).getTime();
+        const bTime = new Date(b.created_at).getTime();
+        if (aTime !== bTime) return aTime - bTime;
+        return (b.viewer_count || 0) - (a.viewer_count || 0);
       });
 
-      // 1. Remove duplicates by title + type
-      // 2. Remove duplicates by source URL
-      // 3. Remove garbage descriptions
       const seenTitles = new Set<string>();
       const seenSources = new Set<string>();
       
-      const filteredChannels = prioritized.filter((ch) => {
-        // Filter garbage descriptions
+      const filtered = sorted.filter((ch) => {
+        // 1. Filter garbage descriptions
         if (isGarbageDescription(ch.description)) return false;
 
-        // Check title duplicate (normalize: lowercase, trim)
+        // 2. Must have at least one media source
+        const chMedia = mediaMap[ch.id] || [];
+        if (chMedia.length === 0) return false;
+
+        // 3. Check title duplicate
         const titleKey = `${ch.title?.toLowerCase().trim()}|${ch.channel_type}`;
         if (seenTitles.has(titleKey)) return false;
         seenTitles.add(titleKey);
         
-        // Check source URL duplicate
-        const channelMedia = mediaMap[ch.id] || [];
-        for (const media of channelMedia) {
+        // 4. Check source URL duplicate
+        let hasDuplicateSource = false;
+        for (const media of chMedia) {
           const sourceKey = media.file_url?.toLowerCase().trim();
-          if (sourceKey && seenSources.has(sourceKey)) return false;
+          if (sourceKey && seenSources.has(sourceKey)) {
+            hasDuplicateSource = true;
+            break;
+          }
           if (sourceKey) seenSources.add(sourceKey);
         }
+        if (hasDuplicateSource) return false;
         
         return true;
       });
 
-      // Sort by personalized recommendations + viewer count
-      const sortedChannels = filteredChannels.sort((a: any, b: any) => {
-        const aScore = scoreChannel(a);
-        const bScore = scoreChannel(b);
-        // Primary: recommendation score
-        if (aScore !== bScore) return bScore - aScore;
-        // Secondary: viewer count
+      // Apply personalized recommendations + viewer count sorting
+      const scored = filtered.map((ch: any) => ({
+        ...ch,
+        _score: scoreChannel(ch),
+      }));
+
+      scored.sort((a: any, b: any) => {
+        if (a._score !== b._score) return b._score - a._score;
         return (b.viewer_count || 0) - (a.viewer_count || 0);
       });
       
-      setChannels(sortedChannels);
+      setChannels(scored);
     }
     
     setLoading(false);
@@ -212,11 +235,72 @@ const Shorts = () => {
     }
   }, [currentIndex, channels, trackView]);
 
+  // Register viewer and fetch live count for current channel
+  useEffect(() => {
+    const ch = channels[currentIndex];
+    if (!ch) return;
+
+    const channelId = ch.id;
+
+    // Register as viewer
+    const register = async () => {
+      try {
+        // Clean stale sessions
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        await supabase
+          .from("channel_viewers")
+          .delete()
+          .eq("channel_id", channelId)
+          .lt("last_seen", fiveMinutesAgo);
+
+        await supabase.from("channel_viewers").insert({
+          channel_id: channelId,
+          user_id: user?.id || null,
+          session_id: sessionId,
+          last_seen: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.error("Viewer register error:", e);
+      }
+    };
+
+    const fetchViewerCount = async () => {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { count } = await supabase
+        .from("channel_viewers")
+        .select("*", { count: "exact", head: true })
+        .eq("channel_id", channelId)
+        .gte("last_seen", fiveMinutesAgo);
+      
+      setLiveViewerCounts(prev => ({ ...prev, [channelId]: Math.max(1, count || 0) }));
+    };
+
+    register();
+    fetchViewerCount();
+
+    // Heartbeat every 20s
+    const heartbeat = setInterval(async () => {
+      await supabase
+        .from("channel_viewers")
+        .update({ last_seen: new Date().toISOString() })
+        .eq("session_id", sessionId);
+      fetchViewerCount();
+    }, 20000);
+
+    return () => {
+      clearInterval(heartbeat);
+      // Remove viewer on leave
+      supabase
+        .from("channel_viewers")
+        .delete()
+        .eq("session_id", sessionId)
+        .then(() => {});
+    };
+  }, [currentIndex, channels, user?.id, sessionId]);
+
   // Fetch user likes
   useEffect(() => {
-    if (user) {
-      fetchLikes();
-    }
+    if (user) fetchLikes();
   }, [user]);
 
   const fetchLikes = async () => {
@@ -242,7 +326,7 @@ const Shorts = () => {
     }
   }, [currentIndex, channels]);
 
-  // Auto-scroll chat to bottom
+  // Auto-scroll chat
   useEffect(() => {
     if (!showChat) return;
     const el = chatListRef.current;
@@ -414,6 +498,7 @@ const Shorts = () => {
   const safeSourceIndex = Math.min(currentSourceIndex, Math.max(0, sourcesForChannel.length - 1));
   const currentMedia = sourcesForChannel[safeSourceIndex];
   const isLiked = likedChannels.has(currentChannel?.id);
+  const currentLiveViewers = liveViewerCounts[currentChannel?.id] || currentChannel?.viewer_count || 0;
 
   const cycleSource = () => {
     if (sourcesForChannel.length <= 1) return;
@@ -436,12 +521,14 @@ const Shorts = () => {
       <div className="absolute inset-0">
         {currentMedia ? (
           <UniversalPlayer
-            key={`shorts-${currentMedia.id}`}
+            key={`shorts-${currentMedia.id}-${safeSourceIndex}`}
             src={currentMedia.file_url}
             sourceType={(currentMedia.source_type as SourceType) || "mp4"}
             title={currentMedia.title}
             channelType={currentChannel.channel_type}
             autoPlay={true}
+            muted={muted}
+            useProxy={true}
             className="w-full h-full object-cover"
           />
         ) : (
@@ -466,7 +553,12 @@ const Shorts = () => {
             <AvatarFallback>{currentChannel.profiles?.username?.[0]?.toUpperCase()}</AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-semibold text-white text-sm">@{currentChannel.profiles?.username}</p>
+            <p className="font-semibold text-white text-sm">
+              @{currentChannel.profiles?.username}
+              {isProtectedUser(currentChannel.profiles?.username || "") && (
+                <span className="ml-1 text-xs">✅</span>
+              )}
+            </p>
             <Badge variant="secondary" className="text-xs">
               {currentChannel.channel_type === "tv" ? "TV" : "Радио"}
             </Badge>
@@ -476,9 +568,14 @@ const Shorts = () => {
         {currentChannel.description && (
           <p className="text-white/80 text-sm line-clamp-2">{currentChannel.description}</p>
         )}
-        <div className="flex items-center gap-2 mt-2 text-white/60 text-xs">
-          <Users className="w-3 h-3" />
-          <span>{currentChannel.viewer_count || 0} смотрят</span>
+        
+        {/* Live viewer count */}
+        <div className="flex items-center gap-3 mt-2">
+          <div className="flex items-center gap-1.5 bg-destructive/30 text-white px-2 py-0.5 rounded-full">
+            <div className="w-1.5 h-1.5 bg-destructive rounded-full animate-pulse" />
+            <Eye className="w-3 h-3" />
+            <span className="text-xs font-medium">{currentLiveViewers} онлайн</span>
+          </div>
         </div>
 
         {sourcesForChannel.length > 1 && (
@@ -576,7 +673,13 @@ const Shorts = () => {
           onTouchEnd={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between p-4">
-            <h4 className="text-white font-semibold">Чат трансляции</h4>
+            <h4 className="text-white font-semibold flex items-center gap-2">
+              Чат трансляции
+              <span className="text-xs text-white/50 font-normal flex items-center gap-1">
+                <Eye className="w-3 h-3" />
+                {currentLiveViewers}
+              </span>
+            </h4>
             <button onClick={() => setShowChat(false)}>
               <X className="w-5 h-5 text-white" />
             </button>

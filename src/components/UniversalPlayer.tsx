@@ -15,6 +15,7 @@ interface UniversalPlayerProps {
   title?: string;
   channelType?: "tv" | "radio";
   autoPlay?: boolean;
+  muted?: boolean;
   poster?: string;
   onEnded?: () => void;
   onError?: (error: any) => void;
@@ -28,6 +29,7 @@ const UniversalPlayer = ({
   title,
   channelType = "tv",
   autoPlay = true,
+  muted = false,
   poster,
   onEnded,
   onError,
@@ -198,7 +200,7 @@ const UniversalPlayer = ({
     }
   }, [actualType, src]);
 
-  // YouTube Player - Using YouTube IFrame Player API
+  // YouTube Player - Using YouTube IFrame Player API with proxy fallback for Russia
   if (actualType === "youtube") {
     const videoId = getYouTubeVideoId(src);
     if (!videoId) {
@@ -213,11 +215,36 @@ const UniversalPlayer = ({
       );
     }
 
+    // If proxy mode is on, try alternative YouTube embeds that work in Russia
+    if (useProxy) {
+      const proxyEmbedUrls = [
+        `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=${muted ? 1 : 0}&rel=0`,
+        `https://invidious.snopyta.org/embed/${videoId}?autoplay=1`,
+        `https://vid.puffyan.us/embed/${videoId}?autoplay=1`,
+        `https://inv.tux.pizza/embed/${videoId}?autoplay=1`,
+      ];
+
+      return (
+        <div className={`aspect-video bg-black rounded-lg overflow-hidden relative ${className}`}>
+          <div className="absolute top-2 left-2 bg-background/80 px-2 py-1 rounded text-xs flex items-center gap-1 z-10">
+            <Globe className="w-3 h-3" />
+            Прокси YouTube
+          </div>
+          <iframe
+            src={proxyEmbedUrls[0]}
+            className="w-full h-full border-0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            allowFullScreen
+          />
+        </div>
+      );
+    }
+
     return (
       <YouTubeIFramePlayer
         videoId={videoId}
         autoPlay={autoPlay}
-        muted={true}
+        muted={muted || true}
         onEnded={onEnded}
         onError={onError}
         className={className}
@@ -338,6 +365,7 @@ const UniversalPlayer = ({
       <video
         ref={videoRef}
         autoPlay={autoPlay}
+        muted={muted}
         playsInline
         controls
         poster={poster}
