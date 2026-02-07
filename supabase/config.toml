@@ -1,22 +1,22 @@
 project_id = "aqeleulwobgamdffkfri"
 
 [functions.mux-create-stream]
-verify_jwt = true
+verify_jwt = false
 
 [functions.hls-playlist]
 verify_jwt = false
 
 [functions.send-notification]
-verify_jwt = true
+verify_jwt = false
 
 [functions.restream-create]
-verify_jwt = true
+verify_jwt = false
 
 [functions.restream-oauth-callback]
 verify_jwt = false
 
 [functions.ai-moderate-channel]
-verify_jwt = true
+verify_jwt = false
 
 [functions.proxy-stream]
 verify_jwt = false
