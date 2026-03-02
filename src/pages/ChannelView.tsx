@@ -164,7 +164,7 @@ const ChannelView = () => {
       .select("points")
       .eq("channel_id", id)
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
     if (data) setViewerPoints(data.points);
   };
 
@@ -277,7 +277,7 @@ const ChannelView = () => {
       .eq("channel_id", id)
       .eq("user_id", user.id)
       .eq("status", "accepted")
-      .single();
+      .maybeSingle();
     
     if (data) {
       setUserRole(data.role);
@@ -1155,7 +1155,7 @@ const ChannelView = () => {
             </TabsContent>
           )}
 
-          {isOwner && channel.streaming_method === "live" && (
+          {canStream && channel.streaming_method === "live" && (
             <TabsContent value="obs" className="mt-4 md:mt-6">
               <div className="bg-card border-2 border-border rounded-lg p-4 md:p-6 space-y-6">
                 <div>

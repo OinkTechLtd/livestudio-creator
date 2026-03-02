@@ -445,7 +445,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
         )
       `)
       .eq('channel_id', channelId)
-      .single();
+      .maybeSingle();
 
     if (data?.chat_messages) {
       setPinnedMessage(data.chat_messages as any);
@@ -493,7 +493,7 @@ const EnhancedLiveChat = ({ channelId, channelOwnerId }: EnhancedLiveChatProps) 
       .select('points, messages_sent')
       .eq('channel_id', channelId)
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
     if (points) {
       await supabase

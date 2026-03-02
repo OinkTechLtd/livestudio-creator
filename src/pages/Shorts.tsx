@@ -143,29 +143,10 @@ const Shorts = () => {
         profiles:user_id (username, avatar_url)
       `)
       .eq("is_hidden", false)
-      .order("viewer_count", { ascending: false });
+      .order("viewer_count", { ascending: false })
+      .limit(100);
 
     if (!error && data) {
-      const channelIds = (data as any[]).map(c => c.id);
-      
-      // Batch fetch media - only if we have channels
-      let mediaMap: Record<string, MediaContent[]> = {};
-      if (channelIds.length > 0) {
-        const { data: mediaData } = await supabase
-          .from("media_content")
-          .select("id, file_url, source_type, title, channel_id, is_24_7")
-          .in("channel_id", channelIds)
-          .order("created_at", { ascending: true });
-
-        if (mediaData) {
-          mediaData.forEach((m: any) => {
-            if (!mediaMap[m.channel_id]) mediaMap[m.channel_id] = [];
-            mediaMap[m.channel_id].push(m);
-          });
-        }
-      }
-      setMediaByChannel(mediaMap);
-
       // Sort: protected first, then oldest
       const sorted = [...(data as any[])].sort((a, b) => {
         const aProtected = isProtectedUser(a?.profiles?.username || "");
@@ -174,36 +155,46 @@ const Shorts = () => {
         return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       });
 
-      // Deduplicate
+      // Deduplicate & filter garbage descriptions
       const seenTitles = new Set<string>();
-      const seenSources = new Set<string>();
-      
       const filtered = sorted.filter((ch) => {
-        if (isGarbageDescription(ch.description)) return false;
-
-        const chMedia = mediaMap[ch.id] || [];
-        if (chMedia.length === 0) return false;
-
+        const prot = isProtectedUser(ch?.profiles?.username || "");
+        if (!prot && isGarbageDescription(ch.description)) return false;
         const titleKey = `${ch.title?.toLowerCase().trim()}|${ch.channel_type}`;
         if (seenTitles.has(titleKey)) return false;
         seenTitles.add(titleKey);
-        
-        let hasDuplicateSource = false;
-        for (const media of chMedia) {
-          const sourceKey = media.file_url?.toLowerCase().trim();
-          if (sourceKey && seenSources.has(sourceKey)) {
-            hasDuplicateSource = true;
-            break;
-          }
-          if (sourceKey) seenSources.add(sourceKey);
-        }
-        if (hasDuplicateSource) return false;
-        
         return true;
       });
 
+      // Batch fetch media only for filtered channels
+      const channelIds = filtered.map(c => c.id);
+      let mediaMap: Record<string, MediaContent[]> = {};
+      
+      if (channelIds.length > 0) {
+        // Batch in groups of 30 to avoid URL length limits
+        for (let i = 0; i < channelIds.length; i += 30) {
+          const batch = channelIds.slice(i, i + 30);
+          const { data: mediaData } = await supabase
+            .from("media_content")
+            .select("id, file_url, source_type, title, channel_id, is_24_7")
+            .in("channel_id", batch)
+            .order("created_at", { ascending: true });
+
+          if (mediaData) {
+            mediaData.forEach((m: any) => {
+              if (!mediaMap[m.channel_id]) mediaMap[m.channel_id] = [];
+              mediaMap[m.channel_id].push(m);
+            });
+          }
+        }
+      }
+      setMediaByChannel(mediaMap);
+
+      // Only keep channels that have media
+      const withMedia = filtered.filter(ch => (mediaMap[ch.id] || []).length > 0);
+
       // Apply personalized recommendations
-      const scored = filtered.map((ch: any) => ({
+      const scored = withMedia.map((ch: any) => ({
         ...ch,
         _score: scoreChannel(ch),
       }));
