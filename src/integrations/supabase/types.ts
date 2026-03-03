@@ -152,6 +152,50 @@ export type Database = {
         }
         Relationships: []
       }
+      channel_clips: {
+        Row: {
+          channel_id: string
+          clip_url: string
+          created_at: string
+          duration: number | null
+          id: string
+          thumbnail_url: string | null
+          title: string
+          user_id: string
+          views: number | null
+        }
+        Insert: {
+          channel_id: string
+          clip_url: string
+          created_at?: string
+          duration?: number | null
+          id?: string
+          thumbnail_url?: string | null
+          title: string
+          user_id: string
+          views?: number | null
+        }
+        Update: {
+          channel_id?: string
+          clip_url?: string
+          created_at?: string
+          duration?: number | null
+          id?: string
+          thumbnail_url?: string | null
+          title?: string
+          user_id?: string
+          views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_clips_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channel_members: {
         Row: {
           channel_id: string
@@ -506,6 +550,7 @@ export type Database = {
           is_hidden: boolean | null
           is_live: boolean | null
           mux_playback_id: string | null
+          paid_only: boolean | null
           stream_key: string | null
           streaming_method:
             | Database["public"]["Enums"]["streaming_method"]
@@ -531,6 +576,7 @@ export type Database = {
           is_hidden?: boolean | null
           is_live?: boolean | null
           mux_playback_id?: string | null
+          paid_only?: boolean | null
           stream_key?: string | null
           streaming_method?:
             | Database["public"]["Enums"]["streaming_method"]
@@ -556,6 +602,7 @@ export type Database = {
           is_hidden?: boolean | null
           is_live?: boolean | null
           mux_playback_id?: string | null
+          paid_only?: boolean | null
           stream_key?: string | null
           streaming_method?:
             | Database["public"]["Enums"]["streaming_method"]

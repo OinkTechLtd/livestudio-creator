@@ -66,7 +66,8 @@ import ChannelMemberManager, { hasPermission } from "@/components/ChannelMemberM
 import PremiumSubscriptions from "@/components/PremiumSubscriptions";
 import ChannelRoulette from "@/components/ChannelRoulette";
 import { useScheduledPlayback } from "@/hooks/useScheduledPlayback";
-import { Film, Download, Crown, Dices } from "lucide-react";
+import { Film, Download, Crown, Dices, Lock } from "lucide-react";
+import PaidContentGate from "@/components/PaidContentGate";
 
 interface Channel {
   id: string;
@@ -80,6 +81,7 @@ interface Channel {
   user_id: string;
   mux_playback_id: string | null;
   donation_url: string | null;
+  paid_only: boolean;
 }
 
 interface MediaContent {
@@ -968,6 +970,29 @@ const ChannelView = () => {
 
           <TabsContent value="player" className="mt-4 md:mt-6">
             <div className="bg-card border-2 border-border rounded-lg p-4 md:p-8">
+              {/* Paid-only toggle for owner */}
+              {canManage && (
+                <div className="flex items-center justify-between mb-4 p-3 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-medium">Только для платных подписчиков</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={channel.paid_only ? "default" : "outline"}
+                    onClick={async () => {
+                      const newVal = !channel.paid_only;
+                      await supabase.from("channels").update({ paid_only: newVal }).eq("id", channel.id);
+                      setChannel({ ...channel, paid_only: newVal });
+                      toast({ title: newVal ? "Контент закрыт для неподписчиков" : "Контент открыт для всех" });
+                    }}
+                  >
+                    {channel.paid_only ? "Включено" : "Выключено"}
+                  </Button>
+                </div>
+              )}
+
+              <PaidContentGate channelId={channel.id} channelOwnerId={channel.user_id} isPaidOnly={channel.paid_only}>
               <div className="space-y-4">
                 {/* Show WebRTC stream for viewers when channel is live */}
                 {channel.is_live && !isOwner ? (
@@ -1012,7 +1037,6 @@ const ChannelView = () => {
                       <span className="w-2 h-2 bg-destructive-foreground rounded-full animate-pulse" />
                       ПРЯМОЙ ЭФИР
                     </div>
-                    {/* Use UniversalPlayer for ALL sources including YouTube/Ultra Aggregator - prevents flickering */}
                     {mediaContent[currentMediaIndex] && (
                       <UniversalPlayer
                         key={`player-${mediaContent[currentMediaIndex].id}-${currentMediaIndex}`}
@@ -1072,6 +1096,7 @@ const ChannelView = () => {
                   </div>
                 )}
               </div>
+              </PaidContentGate>
             </div>
           </TabsContent>
 
