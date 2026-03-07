@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 const CONSENT_KEY = "shorts_data_consent";
 const VIEW_HISTORY_KEY = "shorts_view_history";
 const SEARCH_HISTORY_KEY = "shorts_search_history";
+const INTERESTS_KEY = "shorts_interest_tags";
 const MAX_HISTORY = 200;
 
 interface ViewEntry {
@@ -18,9 +19,17 @@ interface SearchEntry {
   ts: number;
 }
 
+const splitToTokens = (value: string) =>
+  value
+    .toLowerCase()
+    .split(/[\s,.;:!?()\[\]{}"'`~@#$%^&*+=|\\/<>\-]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2);
+
 export function useShortsRecommendations() {
   const [consentGiven, setConsentGiven] = useState<boolean | null>(null);
   const [showConsentBanner, setShowConsentBanner] = useState(false);
+  const [interestTags, setInterestTags] = useState<string[]>([]);
 
   useEffect(() => {
     const stored = localStorage.getItem(CONSENT_KEY);
@@ -34,6 +43,18 @@ export function useShortsRecommendations() {
       // Not decided yet
       setConsentGiven(null);
       setShowConsentBanner(true);
+    }
+
+    try {
+      const rawInterests = localStorage.getItem(INTERESTS_KEY);
+      if (rawInterests) {
+        const parsed = JSON.parse(rawInterests);
+        if (Array.isArray(parsed)) {
+          setInterestTags(parsed.filter((item) => typeof item === "string"));
+        }
+      }
+    } catch {
+      // silently fail
     }
   }, []);
 
@@ -50,6 +71,29 @@ export function useShortsRecommendations() {
     // Clear any existing data
     localStorage.removeItem(VIEW_HISTORY_KEY);
     localStorage.removeItem(SEARCH_HISTORY_KEY);
+    localStorage.removeItem(INTERESTS_KEY);
+    setInterestTags([]);
+  }, []);
+
+  const saveInterestTags = useCallback((tags: string[]) => {
+    const cleaned = Array.from(new Set(tags.map((tag) => tag.trim().toLowerCase()).filter((tag) => tag.length >= 2))).slice(0, 20);
+    setInterestTags(cleaned);
+    try {
+      localStorage.setItem(INTERESTS_KEY, JSON.stringify(cleaned));
+    } catch {
+      // silently fail
+    }
+  }, []);
+
+  const clearRecommendationProfile = useCallback(() => {
+    try {
+      localStorage.removeItem(VIEW_HISTORY_KEY);
+      localStorage.removeItem(SEARCH_HISTORY_KEY);
+      localStorage.removeItem(INTERESTS_KEY);
+    } catch {
+      // silently fail
+    }
+    setInterestTags([]);
   }, []);
 
   const trackView = useCallback(
@@ -132,13 +176,22 @@ export function useShortsRecommendations() {
             else score += 1;
           }
         }
+
+        if (interestTags.length > 0) {
+          const contentTokens = new Set(splitToTokens(`${channel.title || ""} ${channel.description || ""}`));
+          for (const tag of interestTags) {
+            if (contentTokens.has(tag)) {
+              score += 8;
+            }
+          }
+        }
       } catch {
         // silently fail
       }
 
       return score;
     },
-    [consentGiven]
+    [consentGiven, interestTags]
   );
 
   return {
@@ -149,5 +202,8 @@ export function useShortsRecommendations() {
     trackView,
     trackSearch,
     scoreChannel,
+    interestTags,
+    saveInterestTags,
+    clearRecommendationProfile,
   };
 }

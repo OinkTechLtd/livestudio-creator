@@ -9,13 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Heart, MessageCircle, Share2, Volume2, VolumeX,
   ChevronUp, ChevronDown, Send, X, Tv,
-  Radio as RadioIcon, Eye, RefreshCw
+  Radio as RadioIcon, Eye, RefreshCw, Sparkles, RotateCcw
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import UniversalPlayer, { SourceType } from "@/components/UniversalPlayer";
 import DataConsentBanner from "@/components/DataConsentBanner";
 import { useShortsRecommendations } from "@/hooks/useShortsRecommendations";
-import { isBlockedDuplicateChannel } from "@/lib/channelSafety";
+import { deduplicateChannelsByTitle, hasBlockedModerationReason, isBlockedDuplicateChannel } from "@/lib/channelSafety";
 
 interface Channel {
   id: string;
@@ -77,10 +77,23 @@ const Shorts = () => {
   const [liveViewerCounts, setLiveViewerCounts] = useState<Record<string, number>>({});
   const [sessionId] = useState(() => `shorts-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`);
   const [playerKey, setPlayerKey] = useState(0);
+  const [interestInput, setInterestInput] = useState("");
+  const [showInterestEditor, setShowInterestEditor] = useState(false);
 
   const {
-    showConsentBanner, acceptConsent, declineConsent, trackView, scoreChannel,
+    showConsentBanner,
+    acceptConsent,
+    declineConsent,
+    trackView,
+    scoreChannel,
+    interestTags,
+    saveInterestTags,
+    clearRecommendationProfile,
   } = useShortsRecommendations();
+
+  useEffect(() => {
+    setInterestInput(interestTags.join(", "));
+  }, [interestTags]);
 
   useEffect(() => { fetchChannels(); }, [user]);
 
@@ -137,7 +150,19 @@ const Shorts = () => {
     }
     setMediaByChannel(mediaMap);
 
+    const userIds = Array.from(new Set((data as any[]).map((channel) => channel.user_id).filter(Boolean)));
+    let bannedUsers = new Set<string>();
+    if (userIds.length > 0) {
+      const { data: bannedData } = await supabase
+        .from("banned_users")
+        .select("user_id")
+        .in("user_id", userIds);
+      bannedUsers = new Set((bannedData || []).map((row: any) => row.user_id));
+    }
+
     const withMedia = (data as any[])
+      .filter((ch) => !bannedUsers.has(ch.user_id))
+      .filter((ch) => !hasBlockedModerationReason(ch.hidden_reason))
       .filter((ch) => !isBlockedDuplicateChannel({
         username: ch.profiles?.username,
         title: ch.title,
@@ -146,13 +171,7 @@ const Shorts = () => {
         hiddenReason: ch.hidden_reason,
       }))
       .filter(ch => (mediaMap[ch.id] || []).length > 0);
-    const seenTitles = new Set<string>();
-    const deduped = withMedia.filter((ch) => {
-      const key = `${ch.title?.toLowerCase().trim()}|${ch.channel_type}`;
-      if (seenTitles.has(key)) return false;
-      seenTitles.add(key);
-      return true;
-    });
+    const deduped = deduplicateChannelsByTitle(withMedia as any[]);
 
     const scored = deduped.map((ch: any) => ({ ...ch, _score: scoreChannel(ch) }));
     scored.sort((a: any, b: any) => {
@@ -358,6 +377,62 @@ const Shorts = () => {
   return (
     <div ref={containerRef} className="fixed inset-0 bg-black overflow-hidden" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       {showConsentBanner && <DataConsentBanner onAccept={acceptConsent} onDecline={declineConsent} />}
+
+      <div className="absolute top-4 right-4 z-30 flex gap-2">
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => setShowInterestEditor((prev) => !prev)}
+          className="bg-black/50 text-white border-white/20"
+        >
+          <Sparkles className="w-4 h-4 mr-1" />
+          Интересы
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            clearRecommendationProfile();
+            toast({ title: "Профиль рекомендаций сброшен" });
+            fetchChannels();
+          }}
+          className="bg-black/50 text-white border-white/20"
+        >
+          <RotateCcw className="w-4 h-4 mr-1" />
+          Сброс
+        </Button>
+      </div>
+
+      {showInterestEditor && (
+        <div className="absolute top-16 right-4 z-30 w-[320px] max-w-[calc(100vw-2rem)] rounded-lg border border-white/20 bg-black/80 p-3 backdrop-blur-sm">
+          <p className="text-sm text-white font-medium mb-2">Персональные интересы (как TikTok)</p>
+          <Input
+            value={interestInput}
+            onChange={(e) => setInterestInput(e.target.value)}
+            placeholder="спорт, кино, новости, музыка"
+            className="bg-white/10 border-white/20 text-white placeholder:text-white/50"
+          />
+          <div className="flex gap-2 mt-2">
+            <Button
+              size="sm"
+              onClick={() => {
+                const tags = interestInput.split(",").map((tag) => tag.trim()).filter(Boolean);
+                saveInterestTags(tags);
+                toast({ title: "Интересы сохранены" });
+                fetchChannels();
+              }}
+            >
+              Сохранить
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowInterestEditor(false)}>
+              Закрыть
+            </Button>
+          </div>
+          {interestTags.length > 0 && (
+            <p className="text-xs text-white/70 mt-2">Текущие: {interestTags.join(", ")}</p>
+          )}
+        </div>
+      )}
 
       {/* Video Player */}
       <div className="absolute inset-0">

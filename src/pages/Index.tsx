@@ -5,6 +5,7 @@ import { TrendingUp } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from "@/contexts/LanguageContext";
 import ChannelPreviewCard from "@/components/ChannelPreviewCard";
+import { deduplicateChannelsByTitle, hasBlockedModerationReason, isBlockedDuplicateChannel } from "@/lib/channelSafety";
 
 interface Channel {
   id: string;
@@ -14,6 +15,9 @@ interface Channel {
   channel_type: "tv" | "radio";
   is_live: boolean;
   viewer_count: number;
+  user_id: string;
+  is_hidden?: boolean | null;
+  hidden_reason?: string | null;
   profiles: {
     username: string;
   };
@@ -43,7 +47,8 @@ const Index = () => {
       .limit(20);
 
     if (!error && data) {
-      setChannels(data as any);
+      const sanitized = await sanitizeChannels(data as any[]);
+      setChannels(sanitized as any);
     }
     setLoading(false);
   };
@@ -60,8 +65,35 @@ const Index = () => {
       .limit(10);
 
     if (!error && data) {
-      setTrendingChannels(data as any);
+      const sanitized = await sanitizeChannels(data as any[]);
+      setTrendingChannels(sanitized as any);
     }
+  };
+
+  const sanitizeChannels = async (rawChannels: any[]) => {
+    const userIds = Array.from(new Set(rawChannels.map((channel) => channel.user_id).filter(Boolean)));
+    let bannedUsers = new Set<string>();
+    if (userIds.length > 0) {
+      const { data: bannedData } = await supabase
+        .from("banned_users")
+        .select("user_id")
+        .in("user_id", userIds);
+      bannedUsers = new Set((bannedData || []).map((row: any) => row.user_id));
+    }
+
+    const filtered = rawChannels
+      .filter((channel) => !channel.is_hidden)
+      .filter((channel) => !bannedUsers.has(channel.user_id))
+      .filter((channel) => !hasBlockedModerationReason(channel.hidden_reason))
+      .filter((channel) => !isBlockedDuplicateChannel({
+        username: channel.profiles?.username,
+        title: channel.title,
+        description: channel.description,
+        isHidden: channel.is_hidden,
+        hiddenReason: channel.hidden_reason,
+      }));
+
+    return deduplicateChannelsByTitle(filtered);
   };
 
   return (

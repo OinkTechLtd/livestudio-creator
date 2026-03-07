@@ -8,10 +8,11 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Search as SearchIcon, Tv, Radio } from "lucide-react";
 import { useShortsRecommendations } from "@/hooks/useShortsRecommendations";
-import { isBlockedDuplicateChannel } from "@/lib/channelSafety";
+import { deduplicateChannelsByTitle, hasBlockedModerationReason, isBlockedDuplicateChannel } from "@/lib/channelSafety";
 
 interface Channel {
   id: string;
+  user_id: string;
   title: string;
   description: string | null;
   channel_type: "tv" | "radio";
@@ -49,11 +50,14 @@ const Search = () => {
         .from("channels")
         .select(`
           id,
+          user_id,
           title,
           description,
           channel_type,
           thumbnail_url,
           viewer_count,
+          is_hidden,
+          hidden_reason,
           profiles!inner (
             username
           )
@@ -64,16 +68,33 @@ const Search = () => {
         .limit(50);
 
       if (error) throw error;
+
+      const userIds = Array.from(new Set((data || []).map((channel: any) => channel.user_id).filter(Boolean)));
+      let bannedUsers = new Set<string>();
+      if (userIds.length > 0) {
+        const { data: bannedData } = await supabase
+          .from("banned_users")
+          .select("user_id")
+          .in("user_id", userIds);
+        bannedUsers = new Set((bannedData || []).map((row: any) => row.user_id));
+      }
       
-      const cleanData = (data || []).filter((channel: any) => !isBlockedDuplicateChannel({
-        username: channel.profiles?.username,
-        title: channel.title,
-        description: channel.description,
-      }));
+      const cleanData = (data || [])
+        .filter((channel: any) => !bannedUsers.has(channel.user_id))
+        .filter((channel: any) => !hasBlockedModerationReason(channel.hidden_reason))
+        .filter((channel: any) => !isBlockedDuplicateChannel({
+          username: channel.profiles?.username,
+          title: channel.title,
+          description: channel.description,
+          isHidden: channel.is_hidden,
+          hiddenReason: channel.hidden_reason,
+        }));
+
+      const deduped = deduplicateChannelsByTitle(cleanData as any[]);
 
       // Sort: OinkTech/Twixoff first, then by viewer count
       const protectedNames = new Set(["oinktech", "twixoff"]);
-      const sorted = cleanData.sort((a: any, b: any) => {
+      const sorted = deduped.sort((a: any, b: any) => {
         const aProtected = Array.from(protectedNames).some(p => 
           (a.profiles?.username || "").toLowerCase().startsWith(p)
         );

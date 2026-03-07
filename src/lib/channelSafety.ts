@@ -10,6 +10,10 @@ const DUPLICATE_REASON_KEYWORDS = [
   "клон",
   "копи",
   "мусор",
+  "спам",
+  "spam",
+  "scam",
+  "скам",
 ];
 
 const normalize = (value: string | null | undefined) => (value || "").trim().toLowerCase();
@@ -27,6 +31,11 @@ const hasProtectedBrandMention = (...parts: Array<string | null | undefined>) =>
 };
 
 export const hasDuplicateModerationReason = (hiddenReason: string | null | undefined) => {
+  const normalized = normalize(hiddenReason);
+  return DUPLICATE_REASON_KEYWORDS.some((keyword) => normalized.includes(keyword));
+};
+
+export const hasBlockedModerationReason = (hiddenReason: string | null | undefined) => {
   const normalized = normalize(hiddenReason);
   return DUPLICATE_REASON_KEYWORDS.some((keyword) => normalized.includes(keyword));
 };
@@ -56,4 +65,32 @@ export const isBlockedDuplicateChannel = ({
   }
 
   return !isOfficialProtectedAccount(username);
+};
+
+interface DeduplicateInput {
+  id: string;
+  title?: string | null;
+  channel_type?: string | null;
+  viewer_count?: number | null;
+}
+
+export const deduplicateChannelsByTitle = <T extends DeduplicateInput>(channels: T[]): T[] => {
+  const winners = new Map<string, T>();
+
+  for (const channel of channels) {
+    const key = `${normalize(channel.title)}|${normalize(channel.channel_type)}`;
+    const existing = winners.get(key);
+    if (!existing) {
+      winners.set(key, channel);
+      continue;
+    }
+
+    const currentViewerCount = channel.viewer_count || 0;
+    const existingViewerCount = existing.viewer_count || 0;
+    if (currentViewerCount > existingViewerCount) {
+      winners.set(key, channel);
+    }
+  }
+
+  return Array.from(winners.values());
 };

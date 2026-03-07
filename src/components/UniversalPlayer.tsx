@@ -318,11 +318,18 @@ const UniversalPlayer = ({
 
   // PlayerJS CDN Player
   if (actualType === "playerjs") {
-    const params = new URLSearchParams();
-    params.set("file", src);
-    if (title) params.set("title", title);
-    params.set("autoplay", autoPlay ? "1" : "0");
-    const iframeSrc = `/playerjs-embed.html?${params.toString()}`;
+    const trimmedSrc = (src || "").trim();
+    const looksLikeDirectMedia = /\.(m3u8|m3u|txt|mp4|webm|mp3|wav|ogg|aac)(\?|#|$)/i.test(trimmedSrc);
+    const looksLikePlayerEmbed = /playerjs|embed|\.html(\?|#|$)/i.test(trimmedSrc);
+
+    let iframeSrc = trimmedSrc;
+    if (!looksLikePlayerEmbed || looksLikeDirectMedia) {
+      const params = new URLSearchParams();
+      params.set("file", trimmedSrc);
+      if (title) params.set("title", title);
+      params.set("autoplay", autoPlay ? "1" : "0");
+      iframeSrc = `/playerjs-embed.html?${params.toString()}`;
+    }
 
     return (
       <div className={`aspect-video bg-black rounded-lg overflow-hidden relative ${className}`}>
