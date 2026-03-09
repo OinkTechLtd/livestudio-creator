@@ -1,73 +1,123 @@
-# Welcome to your Lovable project
+# StreamLiveTV Creator
 
-## Project info
+Удобная платформа для запуска собственных онлайн-каналов (ТВ/радио), управления эфиром, общения с аудиторией и публикации встраиваемого плеера.
 
-**URL**: https://lovable.dev/projects/407341cb-1604-43ec-8920-e0503e40edba
+## Что это за платформа
 
-## How can I edit this code?
+**StreamLiveTV Creator** — это веб‑приложение, где можно:
+- создавать каналы и запускать 24/7 эфир;
+- подключать разные источники контента (например, YouTube, MP4, M3U8);
+- смотреть каналы через встроенный плеер;
+- общаться в чате и развивать сообщество;
+- использовать профиль, поиск, API и историю обновлений.
 
-There are several ways of editing your application.
+Основные разделы приложения:
+- `/` — лендинг;
+- `/browse` — каталог каналов;
+- `/create-channel` — создание канала;
+- `/channel/:id` — страница канала;
+- `/embed/:id` и `/popout/:id` — варианты плеера;
+- `/api-docs` — документация API.
 
-**Use Lovable**
+---
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/407341cb-1604-43ec-8920-e0503e40edba) and start prompting.
+## Быстрый старт (локально)
 
-Changes made via Lovable will be committed automatically to this repo.
+### 1) Требования
+- Node.js 18+
+- npm 9+
 
-**Use your preferred IDE**
+### 2) Установка и запуск
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+После запуска откройте адрес из терминала (обычно `http://localhost:5173`).
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### 3) Полезные команды
 
-**Use GitHub Codespaces**
+```bash
+npm run dev      # режим разработки
+npm run build    # production-сборка
+npm run preview  # локальный просмотр production-сборки
+npm run lint     # проверка ESLint
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+---
 
-## What technologies are used for this project?
+## Технологии
 
-This project is built with:
-
+- React 18 + TypeScript
 - Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- Tailwind CSS + shadcn/ui
+- React Router
+- TanStack Query
+- Supabase
 
-## How can I deploy this project?
+---
 
-Simply open [Lovable](https://lovable.dev/projects/407341cb-1604-43ec-8920-e0503e40edba) and click on Share -> Publish.
+## Деплой и резервные сайты
 
-## Can I connect a custom domain to my Lovable project?
+Ниже рекомендуемая схема публикации:
 
-Yes, you can!
+- **Основной сайт**: Vercel
+- **Резервный сайт (fallback)**: Netlify
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Это удобно: если у одного провайдера временные проблемы, можно быстро переключить трафик на второй.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+### Рекомендуемые URL (заполните своими доменами)
+
+- Основной (Vercel): `https://<your-project>.vercel.app`
+- Резервный (Netlify): `https://<your-project>.netlify.app`
+
+> Если есть собственный домен, настройте `A/CNAME` и резервный поддомен, например:
+> - `app.example.com` → Vercel
+> - `backup.example.com` → Netlify
+
+### Минимальные настройки деплоя
+
+Для обоих сервисов:
+- **Build command**: `npm run build`
+- **Publish directory**: `dist`
+- **Node version**: 18+
+- Добавьте одинаковые переменные окружения (особенно Supabase), чтобы основной и резервный сайты работали одинаково.
+
+---
+
+## Переменные окружения
+
+Создайте `.env` (или настройте переменные в панели Vercel/Netlify):
+
+```bash
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+```
+
+> Никогда не коммитьте секреты в репозиторий.
+
+---
+
+## Структура проекта (кратко)
+
+- `src/pages` — страницы приложения
+- `src/components` — UI и бизнес-компоненты
+- `src/integrations` — интеграции (например, Supabase)
+- `public` — статические файлы
+
+---
+
+## Для пользователей платформы
+
+1. Зарегистрируйтесь/войдите.
+2. Создайте канал.
+3. Добавьте источник трансляции.
+4. Откройте страницу канала и проверьте эфир.
+5. При необходимости используйте embed/popout‑плеер для внешних сайтов.
+
+---
+
+## Лицензия и права
+
+© 2024–2026 StreamLiveTV / TOO Oink Tech Ltd Co. Все права защищены.
