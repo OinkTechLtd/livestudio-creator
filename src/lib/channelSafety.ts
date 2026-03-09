@@ -41,6 +41,28 @@ const LOW_QUALITY_TITLES = new Set([
   "тест",
 ]);
 
+const JUNK_DISCOVERY_KEYWORDS = [
+  "spam",
+  "scam",
+  "скам",
+  "мусор",
+  "фейк",
+  "fake",
+  "дубликат",
+  "clone",
+  "клон",
+  "накрут",
+  "казино",
+  "ставк",
+  "18+",
+  "xxx",
+  "porn",
+  "порно",
+  "ебан",
+  "долбо",
+  "хз",
+];
+
 export const BLOCKED_CHANNEL_TEXT = "Данный канал был заблокирован за нарушение правил платформы.";
 
 export const isOfficialProtectedAccount = (username: string | null | undefined) => {
@@ -71,6 +93,12 @@ const hasSuspiciousLowEffortText = (title?: string | null, description?: string 
   const hasLowQualityTitle = LOW_QUALITY_TITLES.has(normalizedTitle);
 
   return hasLowQualityDescription || (hasLowQualityTitle && normalizedDescription.length <= 8);
+};
+
+const hasJunkDiscoveryKeyword = (...parts: Array<string | null | undefined>) => {
+  const normalized = normalize(parts.filter(Boolean).join(" "));
+  if (!normalized) return false;
+  return JUNK_DISCOVERY_KEYWORDS.some((keyword) => normalized.includes(keyword));
 };
 
 interface DiscoveryCensorshipInput {
@@ -104,6 +132,10 @@ export const getDiscoveryCensorshipReason = ({
 
   if (hasSuspiciousLowEffortText(title, description)) {
     return "Низкокачественное или пустое описание канала";
+  }
+
+  if (hasJunkDiscoveryKeyword(username, title, description, hiddenReason)) {
+    return "Канал отфильтрован как мусорный по ключевым словам";
   }
 
   return null;

@@ -95,9 +95,7 @@ const Shorts = () => {
     setInterestInput(interestTags.join(", "));
   }, [interestTags]);
 
-  useEffect(() => { fetchChannels(); }, [user]);
-
-  const fetchChannels = async () => {
+  const fetchChannels = useCallback(async () => {
     setLoading(true);
     
     const { data, error } = await supabase
@@ -182,7 +180,11 @@ const Shorts = () => {
     setCurrentIndex(0);
     setCurrentMediaIndex(0);
     setLoading(false);
-  };
+  }, [scoreChannel]);
+
+  useEffect(() => {
+    fetchChannels();
+  }, [fetchChannels]);
 
   useEffect(() => {
     const ch = channels[currentIndex];
