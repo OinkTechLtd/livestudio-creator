@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Radio as RadioIcon, Lock, AlertTriangle } from "lucide-react";
+import { Lock, AlertTriangle } from "lucide-react";
 import UniversalPlayer, { SourceType } from "@/components/UniversalPlayer";
 import { getDiscoveryCensorshipReason, shouldCensorChannelFromDiscovery } from "@/lib/channelSafety";
 
@@ -139,18 +139,32 @@ const EmbedPlayer = () => {
   }
 
   if (channel.streaming_method === "live") {
+    const liveStreamUrl = `https://aqeleulwobgamdffkfri.functions.supabase.co/hls-playlist?channelId=${channel.id}`;
+
+    if (channel.is_live) {
+      return (
+        <div className="w-full h-full bg-background relative">
+          <UniversalPlayer
+            src={liveStreamUrl}
+            sourceType="m3u8"
+            title={channel.title}
+            channelType={channel.channel_type}
+            autoPlay
+            poster={channel.thumbnail_url || undefined}
+            className="w-full h-full"
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="w-full h-full bg-background relative flex items-center justify-center">
         {channel.thumbnail_url && (
           <div className="absolute top-4 right-4 z-20"><img src={channel.thumbnail_url} alt={channel.title} className="w-12 h-12 rounded-full border-2 border-border object-cover" /></div>
         )}
-        <div className="absolute top-4 left-4 bg-destructive text-destructive-foreground px-3 py-1 rounded-full text-sm font-semibold flex items-center gap-2 z-10">
-          <span className="w-2 h-2 bg-destructive-foreground rounded-full animate-pulse" />LIVE
-        </div>
         <div className="text-center px-4">
-          <RadioIcon className="w-12 h-12 text-primary mx-auto mb-3 animate-pulse" />
           <p className="text-lg font-semibold">{channel.title}</p>
-          <p className="text-sm text-muted-foreground">Прямая трансляция (RTMP)</p>
+          <p className="text-sm text-muted-foreground">Трансляция сейчас офлайн</p>
         </div>
       </div>
     );

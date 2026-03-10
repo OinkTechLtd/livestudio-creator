@@ -840,7 +840,6 @@ const ChannelView = () => {
     );
   }
 
-  const isPlayableRestreamUrl = /^https?:\/\//i.test(restreamUrl) || /\.m3u8(\?|$)/i.test(restreamUrl);
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
@@ -1148,15 +1147,22 @@ const ChannelView = () => {
 
               <PaidContentGate channelId={channel.id} channelOwnerId={channel.user_id} isPaidOnly={channel.paid_only}>
               <div className="space-y-4">
-                {/* Show WebRTC stream for viewers when channel is live */}
-                {channel.is_live && !isOwner ? (
-                  channel.channel_type === "tv" ? (
-                    <ScreenShareStreaming channelId={channel.id} isOwner={false} />
+                {channel.streaming_method === "live" && restreamUrl ? (
+                  channel.is_live ? (
+                    <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
+                      <UniversalPlayer
+                        key={`restream-live-${channel.id}-${channel.is_live}`}
+                        src={getM3u8Url()}
+                        sourceType="m3u8"
+                        title={channel.title}
+                        channelType={channel.channel_type}
+                        autoPlay
+                        poster={channel.thumbnail_url || undefined}
+                        className="w-full h-full"
+                      />
+                    </div>
                   ) : (
-                    <VoiceStreaming channelId={channel.id} isOwner={false} />
-                  )
-                ) : channel.streaming_method === "live" && restreamUrl ? (
-                  <div className="aspect-video bg-muted rounded-lg overflow-hidden relative flex items-center justify-center">
+                    <div className="aspect-video bg-muted rounded-lg overflow-hidden relative flex items-center justify-center">
                     {channel.thumbnail_url && channel.channel_type === "tv" && (
                       <img
                         src={channel.thumbnail_url}
@@ -1165,26 +1171,22 @@ const ChannelView = () => {
                       />
                     )}
                     <div className="absolute inset-0 bg-black/40" />
-                    <div className="absolute top-4 left-4 bg-destructive text-white px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-semibold flex items-center gap-2 z-10">
+                    <div className="absolute top-4 left-4 bg-muted-foreground/80 text-white px-2 md:px-3 py-1 rounded-full text-xs md:text-sm font-semibold flex items-center gap-2 z-10">
                       <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                      LIVE
+                      OFFLINE
                     </div>
                     <div className="text-center relative z-10 p-4">
-                      {channel.channel_type === "tv" ? (
-                        <Tv className="w-16 h-16 text-white animate-pulse mx-auto mb-4" />
-                      ) : (
-                        <RadioIcon className="w-16 h-16 text-primary animate-pulse mx-auto mb-4" />
-                      )}
                       <p className="text-lg font-semibold text-white">{channel.title}</p>
-                      <p className="text-sm text-white/80">Прямая трансляция через Restream</p>
-                      {channel.channel_type === "radio" && isPlayableRestreamUrl && (
-                        <audio src={restreamUrl} autoPlay controls className="mt-3 w-full max-w-sm" />
-                      )}
-                      {!isPlayableRestreamUrl && (
-                        <p className="text-xs text-white/70 mt-2">Источник RTMP не воспроизводится в браузере напрямую</p>
-                      )}
+                      <p className="text-sm text-white/80 mt-1">Прямая трансляция скоро начнётся</p>
                     </div>
-                  </div>
+                    </div>
+                  )
+                ) : channel.is_live && !isOwner ? (
+                  channel.channel_type === "tv" ? (
+                    <ScreenShareStreaming channelId={channel.id} isOwner={false} />
+                  ) : (
+                    <VoiceStreaming channelId={channel.id} isOwner={false} />
+                  )
                 ) : mediaContent.length > 0 ? (
                   <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
                     {channel.thumbnail_url && channel.channel_type === "tv" && (

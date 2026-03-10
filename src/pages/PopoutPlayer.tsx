@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import EnhancedLiveChat from "@/components/EnhancedLiveChat";
-import { Radio as RadioIcon, Lock, AlertTriangle } from "lucide-react";
+import { Lock, AlertTriangle } from "lucide-react";
 import UniversalPlayer, { SourceType } from "@/components/UniversalPlayer";
 import { getDiscoveryCensorshipReason, shouldCensorChannelFromDiscovery } from "@/lib/channelSafety";
 
@@ -14,6 +14,7 @@ interface Channel {
   streaming_method: "upload" | "live" | "scheduled";
   mux_playback_id: string | null;
   stream_key: string | null;
+  is_live: boolean;
   thumbnail_url: string | null;
   user_id: string;
   paid_only: boolean;
@@ -56,7 +57,7 @@ const PopoutPlayer = () => {
   const fetchData = async () => {
     if (!id) return;
     try {
-      const { data: channelData } = await supabase.from("channels").select("id, title, channel_type, streaming_method, mux_playback_id, stream_key, thumbnail_url, user_id, paid_only, is_hidden, hidden_reason, description, profiles:user_id(username)").eq("id", id).single();
+      const { data: channelData } = await supabase.from("channels").select("id, title, channel_type, streaming_method, mux_playback_id, stream_key, thumbnail_url, is_live, user_id, paid_only, is_hidden, hidden_reason, description, profiles:user_id(username)").eq("id", id).single();
       if (channelData) {
         setChannel(channelData as Channel);
         if (channelData.streaming_method !== "live") {
@@ -103,6 +104,7 @@ const PopoutPlayer = () => {
   }
 
   const currentMedia = mediaContent[currentIndex];
+  const liveStreamUrl = `https://aqeleulwobgamdffkfri.functions.supabase.co/hls-playlist?channelId=${channel.id}`;
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -122,12 +124,21 @@ const PopoutPlayer = () => {
               <p className="text-muted-foreground text-sm">Оформите подписку на канал для доступа к контенту.</p>
             </div>
           </div>
+        ) : channel.streaming_method === "live" && channel.is_live ? (
+          <UniversalPlayer
+            src={liveStreamUrl}
+            sourceType="m3u8"
+            title={channel.title}
+            channelType={channel.channel_type}
+            autoPlay
+            poster={channel.thumbnail_url || undefined}
+            className="w-full h-full"
+          />
         ) : channel.streaming_method === "live" ? (
-          <div className="w-full h-full flex items-center justify-center">
+          <div className="w-full h-full flex items-center justify-center bg-muted/40">
             <div className="text-center px-4">
-              <RadioIcon className="w-12 h-12 text-primary mx-auto mb-3 animate-pulse" />
               <p className="text-lg font-semibold">{channel.title}</p>
-              <p className="text-sm text-muted-foreground">Прямая трансляция (RTMP)</p>
+              <p className="text-sm text-muted-foreground">Трансляция сейчас офлайн</p>
             </div>
           </div>
         ) : currentMedia ? (

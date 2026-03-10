@@ -24,6 +24,7 @@ interface Channel {
   thumbnail_url: string | null;
   channel_type: "tv" | "radio";
   is_live: boolean;
+  streaming_method: "upload" | "live" | "scheduled";
   viewer_count: number;
   user_id: string;
   created_at: string;
@@ -100,7 +101,7 @@ const Shorts = () => {
     
     const { data, error } = await supabase
       .from("channels")
-      .select(`id, title, description, thumbnail_url, channel_type, is_live, viewer_count, user_id, created_at, category_id, is_hidden, hidden_reason, profiles:user_id (username, avatar_url)`)
+      .select(`id, title, description, thumbnail_url, channel_type, is_live, streaming_method, viewer_count, user_id, created_at, category_id, is_hidden, hidden_reason, profiles:user_id (username, avatar_url)`)
       .eq("is_hidden", false)
       .order("viewer_count", { ascending: false })
       .limit(500);
@@ -374,6 +375,7 @@ const Shorts = () => {
   const currentMedia = sourcesForChannel[safeMediaIndex];
   const isLiked = likedChannels.has(currentChannel?.id);
   const currentLiveViewers = liveViewerCounts[currentChannel?.id] || currentChannel?.viewer_count || 0;
+  const liveStreamUrl = currentChannel ? `https://aqeleulwobgamdffkfri.functions.supabase.co/hls-playlist?channelId=${currentChannel.id}` : "";
 
   return (
     <div ref={containerRef} className="fixed inset-0 bg-black overflow-hidden" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
@@ -448,6 +450,17 @@ const Shorts = () => {
             muted={muted}
             useProxy={false}
             onEnded={handleMediaEnded}
+            className="w-full h-full object-cover"
+          />
+        ) : currentChannel.is_live && currentChannel.streaming_method === "live" && liveStreamUrl ? (
+          <UniversalPlayer
+            key={`shorts-live-${currentChannel.id}-${playerKey}`}
+            src={liveStreamUrl}
+            sourceType="m3u8"
+            title={currentChannel.title}
+            channelType={currentChannel.channel_type}
+            autoPlay={true}
+            muted={muted}
             className="w-full h-full object-cover"
           />
         ) : (
