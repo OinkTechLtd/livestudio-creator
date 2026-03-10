@@ -103,7 +103,7 @@ const Shorts = () => {
       .select(`id, title, description, thumbnail_url, channel_type, is_live, viewer_count, user_id, created_at, category_id, is_hidden, hidden_reason, profiles:user_id (username, avatar_url)`)
       .eq("is_hidden", false)
       .order("viewer_count", { ascending: false })
-      .limit(250);
+      .limit(500);
 
     if (error || !data) { setLoading(false); return; }
 

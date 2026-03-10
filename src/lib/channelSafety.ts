@@ -61,6 +61,13 @@ const JUNK_DISCOVERY_KEYWORDS = [
   "ебан",
   "долбо",
   "хз",
+  "лохотр",
+  "обман",
+  "развод",
+  "crypto",
+  "крипт",
+  "pump",
+  "dump",
 ];
 
 export const BLOCKED_CHANNEL_TEXT = "Данный канал был заблокирован за нарушение правил платформы.";
@@ -73,6 +80,17 @@ export const isOfficialProtectedAccount = (username: string | null | undefined) 
 const hasProtectedBrandMention = (...parts: Array<string | null | undefined>) => {
   const text = normalize(parts.filter(Boolean).join(" "));
   return PROTECTED_BRAND_NAMES.some((brand) => text.includes(brand));
+};
+
+const normalizeUsernameForBrandCheck = (username: string | null | undefined) => {
+  return normalize(username).replace(/[^\p{L}\p{N}]+/gu, "");
+};
+
+const isSuspiciousBrandUsername = (username: string | null | undefined) => {
+  const normalized = normalizeUsernameForBrandCheck(username);
+  if (!normalized) return false;
+
+  return PROTECTED_BRAND_NAMES.some((brand) => normalized.includes(brand) && normalized !== brand);
 };
 
 export const hasDuplicateModerationReason = (hiddenReason: string | null | undefined) => {
@@ -130,6 +148,10 @@ export const getDiscoveryCensorshipReason = ({
     return hiddenReason || "Канал скрыт модерацией";
   }
 
+  if (isSuspiciousBrandUsername(username)) {
+    return "Канал выглядит как дубликат защищённого бренда";
+  }
+
   if (hasSuspiciousLowEffortText(title, description)) {
     return "Низкокачественное или пустое описание канала";
   }
@@ -164,7 +186,9 @@ export const isBlockedDuplicateChannel = ({
   }
 
   const mentionsProtectedBrand = hasProtectedBrandMention(username, title, description);
-  if (!mentionsProtectedBrand) {
+  const suspiciousUsername = isSuspiciousBrandUsername(username);
+
+  if (!mentionsProtectedBrand && !suspiciousUsername) {
     return false;
   }
 

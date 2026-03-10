@@ -26,6 +26,12 @@ const splitToTokens = (value: string) =>
     .map((token) => token.trim())
     .filter((token) => token.length >= 2);
 
+const normalizeInterestTag = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[\s_\-]+/g, " ")
+    .trim();
+
 const withUserScope = (baseKey: string, userId?: string | null) => (userId ? `${baseKey}:${userId}` : baseKey);
 
 export function useShortsRecommendations(userId?: string | null) {
@@ -80,7 +86,7 @@ export function useShortsRecommendations(userId?: string | null) {
   }, [userId]);
 
   const saveInterestTags = useCallback((tags: string[]) => {
-    const cleaned = Array.from(new Set(tags.map((tag) => tag.trim().toLowerCase()).filter((tag) => tag.length >= 2))).slice(0, 20);
+    const cleaned = Array.from(new Set(tags.map((tag) => normalizeInterestTag(tag)).filter((tag) => tag.length >= 2))).slice(0, 20);
     setInterestTags(cleaned);
     try {
       localStorage.setItem(withUserScope(INTERESTS_KEY, userId), JSON.stringify(cleaned));
@@ -185,9 +191,18 @@ export function useShortsRecommendations(userId?: string | null) {
         }
 
         if (interestTags.length > 0) {
-          const contentTokens = new Set(splitToTokens(`${channel.title || ""} ${channel.description || ""}`));
+          const normalizedContent = `${channel.title || ""} ${channel.description || ""}`.toLowerCase();
+          const contentTokens = new Set(splitToTokens(normalizedContent));
           for (const tag of interestTags) {
-            if (contentTokens.has(tag)) {
+            const normalizedTag = normalizeInterestTag(tag);
+            const tagTokens = splitToTokens(normalizedTag);
+
+            const hasTokenMatch = tagTokens.some((token) =>
+              Array.from(contentTokens).some((contentToken) => contentToken.includes(token) || token.includes(contentToken))
+            );
+            const hasPhraseMatch = normalizedTag.length >= 3 && normalizedContent.includes(normalizedTag);
+
+            if (hasTokenMatch || hasPhraseMatch) {
               score += 15;
             }
           }
