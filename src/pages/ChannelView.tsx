@@ -706,6 +706,34 @@ const ChannelView = () => {
     }
   };
 
+  const updateObsLiveStatus = async (isLive: boolean) => {
+    if (!channel) return;
+
+    try {
+      const { error } = await supabase
+        .from("channels")
+        .update({ is_live: isLive })
+        .eq("id", channel.id);
+
+      if (error) throw error;
+
+      setChannel({ ...channel, is_live: isLive });
+
+      toast({
+        title: isLive ? "Эфир отмечен как запущенный" : "Эфир остановлен",
+        description: isLive
+          ? "Если OBS уже отправляет RTMP, зрители увидят LIVE-статус канала."
+          : "Канал переведён в OFFLINE. Медиатека продолжает работать как раньше.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Ошибка",
+        description: error.message || "Не удалось обновить статус эфира",
+        variant: "destructive",
+      });
+    }
+  };
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({
@@ -1531,6 +1559,33 @@ const ChannelView = () => {
                         <strong>Статус:</strong> Канал готов к стримингу.
                         После запуска OBS трансляция начнётся автоматически.
                       </p>
+                    </div>
+
+                    <div className="bg-muted/40 border border-border rounded-lg p-4 space-y-3">
+                      <p className="text-sm font-medium">Ручной LIVE-статус для внешнего OBS/Restream</p>
+                      <p className="text-xs text-muted-foreground">
+                        Для внешнего RTMP (Restream/Twitch/YouTube) платформа не получает вебхук старта автоматически,
+                        поэтому переключите статус вручную после старта/остановки OBS. Это не ломает воспроизведение медиатеки.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          onClick={() => updateObsLiveStatus(true)}
+                          disabled={channel.is_live}
+                          className="min-w-[140px]"
+                        >
+                          Включить LIVE
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => updateObsLiveStatus(false)}
+                          disabled={!channel.is_live}
+                          className="min-w-[140px]"
+                        >
+                          Выключить LIVE
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="flex gap-2">
