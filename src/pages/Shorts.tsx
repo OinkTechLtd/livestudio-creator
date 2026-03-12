@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import UniversalPlayer, { SourceType } from "@/components/UniversalPlayer";
 import DataConsentBanner from "@/components/DataConsentBanner";
 import { useShortsRecommendations } from "@/hooks/useShortsRecommendations";
+import { resolveLiveStreamUrl } from "@/lib/liveStream";
 import { deduplicateChannelsByTitle, shouldCensorChannelFromDiscovery } from "@/lib/channelSafety";
 
 interface Channel {
@@ -405,21 +406,14 @@ const Shorts = () => {
   const currentMedia = sourcesForChannel[safeMediaIndex];
   const isLiked = likedChannels.has(currentChannel?.id);
   const currentLiveViewers = liveViewerCounts[currentChannel?.id] || currentChannel?.viewer_count || 0;
-  const fallbackPlaylistUrl = currentChannel ? `https://aqeleulwobgamdffkfri.functions.supabase.co/hls-playlist?channelId=${currentChannel.id}` : "";
-  const liveStreamUrl = (() => {
-    if (!currentChannel?.is_live || currentChannel.streaming_method !== "live") return "";
-    const playbackUrl = (currentChannel.mux_playback_id || "").trim();
-
-    if (playbackUrl.startsWith("http://") || playbackUrl.startsWith("https://")) {
-      return playbackUrl;
-    }
-
-    if (sourcesForChannel.length > 0) {
-      return fallbackPlaylistUrl;
-    }
-
-    return "";
-  })();
+  const liveStreamUrl = currentChannel
+    ? resolveLiveStreamUrl({
+        channelId: currentChannel.id,
+        streamingMethod: currentChannel.streaming_method,
+        isLive: currentChannel.is_live,
+        muxPlaybackId: currentChannel.mux_playback_id,
+      })
+    : "";
 
   return (
     <div ref={containerRef} className="fixed inset-0 bg-black overflow-hidden" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>

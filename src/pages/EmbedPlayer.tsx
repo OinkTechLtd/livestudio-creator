@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Lock, AlertTriangle } from "lucide-react";
 import UniversalPlayer, { SourceType } from "@/components/UniversalPlayer";
 import { getDiscoveryCensorshipReason, shouldCensorChannelFromDiscovery } from "@/lib/channelSafety";
+import { resolveLiveStreamUrl } from "@/lib/liveStream";
 
 interface Channel {
   id: string;
@@ -139,9 +140,14 @@ const EmbedPlayer = () => {
   }
 
   if (channel.streaming_method === "live") {
-    const liveStreamUrl = `https://aqeleulwobgamdffkfri.functions.supabase.co/hls-playlist?channelId=${channel.id}`;
+    const liveStreamUrl = resolveLiveStreamUrl({
+      channelId: channel.id,
+      streamingMethod: channel.streaming_method,
+      isLive: channel.is_live,
+      muxPlaybackId: channel.mux_playback_id,
+    });
 
-    if (channel.is_live) {
+    if (channel.is_live && liveStreamUrl) {
       return (
         <div className="w-full h-full bg-background relative">
           <UniversalPlayer

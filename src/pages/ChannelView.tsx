@@ -51,6 +51,7 @@ import { useScheduledPlayback } from "@/hooks/useScheduledPlayback";
 import { Film, Download, Crown, Dices, Lock, Zap } from "lucide-react";
 import PaidContentGate from "@/components/PaidContentGate";
 import { BLOCKED_CHANNEL_TEXT, getDiscoveryCensorshipReason, shouldCensorChannelFromDiscovery } from "@/lib/channelSafety";
+import { resolveLiveStreamUrl } from "@/lib/liveStream";
 
 interface Channel {
   id: string;
@@ -533,7 +534,15 @@ const ChannelView = () => {
   };
 
   const getM3u8Url = () => {
-    return `https://aqeleulwobgamdffkfri.functions.supabase.co/hls-playlist?channelId=${channel?.id}`;
+    if (!channel?.id) return "";
+
+    return resolveLiveStreamUrl({
+      channelId: channel.id,
+      streamingMethod: channel.streaming_method,
+      isLive: channel.is_live,
+      muxPlaybackId: channel.mux_playback_id,
+      requireLive: false,
+    });
   };
 
   const copyEmbedCode = () => {

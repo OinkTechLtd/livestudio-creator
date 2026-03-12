@@ -6,6 +6,7 @@ import EnhancedLiveChat from "@/components/EnhancedLiveChat";
 import { Lock, AlertTriangle } from "lucide-react";
 import UniversalPlayer, { SourceType } from "@/components/UniversalPlayer";
 import { getDiscoveryCensorshipReason, shouldCensorChannelFromDiscovery } from "@/lib/channelSafety";
+import { resolveLiveStreamUrl } from "@/lib/liveStream";
 
 interface Channel {
   id: string;
@@ -104,7 +105,12 @@ const PopoutPlayer = () => {
   }
 
   const currentMedia = mediaContent[currentIndex];
-  const liveStreamUrl = `https://aqeleulwobgamdffkfri.functions.supabase.co/hls-playlist?channelId=${channel.id}`;
+  const liveStreamUrl = resolveLiveStreamUrl({
+    channelId: channel.id,
+    streamingMethod: channel.streaming_method,
+    isLive: channel.is_live,
+    muxPlaybackId: channel.mux_playback_id,
+  });
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -124,7 +130,7 @@ const PopoutPlayer = () => {
               <p className="text-muted-foreground text-sm">Оформите подписку на канал для доступа к контенту.</p>
             </div>
           </div>
-        ) : channel.streaming_method === "live" && channel.is_live ? (
+        ) : channel.streaming_method === "live" && channel.is_live && liveStreamUrl ? (
           <UniversalPlayer
             src={liveStreamUrl}
             sourceType="m3u8"
