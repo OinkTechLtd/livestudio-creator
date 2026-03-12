@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users, Eye, Radio, Tv, Play, Loader2 } from "lucide-react";
 import Hls from "hls.js";
+import { resolveLiveStreamUrl } from "@/lib/liveStream";
 
 interface Channel {
   id: string;
@@ -18,7 +19,10 @@ interface Channel {
   };
   subscriptions: { count: number }[];
   media_preview_url?: string;
+  streaming_method?: "upload" | "live" | "scheduled";
+  mux_playback_id?: string | null;
 }
+
 
 interface ChannelPreviewCardProps {
   channel: Channel;
@@ -34,11 +38,15 @@ const ChannelPreviewCard = ({ channel, t }: ChannelPreviewCardProps) => {
   const hlsRef = useRef<Hls | null>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Build preview URL from the HLS playlist endpoint
-  const previewUrl = `https://aqeleulwobgamdffkfri.functions.supabase.co/hls-playlist?channelId=${channel.id}`;
+  const previewUrl = resolveLiveStreamUrl({
+    channelId: channel.id,
+    streamingMethod: channel.streaming_method || "live",
+    isLive: channel.is_live,
+    muxPlaybackId: channel.mux_playback_id,
+  });
 
   const handleMouseEnter = () => {
-    if (channel.channel_type !== "tv") return;
+    if (channel.channel_type !== "tv" || !channel.is_live || !previewUrl) return;
     
     // Delay before starting preview to avoid unnecessary loads
     hoverTimeoutRef.current = setTimeout(() => {
@@ -136,7 +144,7 @@ const ChannelPreviewCard = ({ channel, t }: ChannelPreviewCardProps) => {
           )}
           
           {/* Video preview on hover for TV channels */}
-          {channel.channel_type === "tv" && isHovering && (
+          {channel.channel_type === "tv" && isHovering && previewUrl && (
             <div className="absolute inset-0 bg-black">
               <video
                 ref={videoRef}
@@ -166,7 +174,7 @@ const ChannelPreviewCard = ({ channel, t }: ChannelPreviewCardProps) => {
           )}
 
           {/* Hover indicator */}
-          {isHovering && channel.channel_type === "tv" && (
+          {isHovering && channel.channel_type === "tv" && previewUrl && (
             <div className="absolute bottom-2 left-2 right-2 flex justify-center">
               {isLoadingPreview ? (
                 <Badge variant="secondary" className="bg-black/70 text-white text-xs">

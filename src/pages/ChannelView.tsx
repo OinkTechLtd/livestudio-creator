@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   Edit, Save, X, Code, Upload, Trash2,
   Radio as RadioIcon, Tv, Flag, BarChart3,
-  ExternalLink, Link, Copy, Users, Bot, Gift,
+  ExternalLink, Copy, Users, Bot, Gift,
   Settings, Monitor, Mic, Heart, Scissors
 } from "lucide-react";
 import ScreenShareStreaming from "@/components/ScreenShareStreaming";
@@ -553,13 +553,6 @@ const ChannelView = () => {
     });
   };
 
-  const copyM3u8Url = () => {
-    navigator.clipboard.writeText(getM3u8Url());
-    toast({
-      title: "Скопировано",
-      description: "M3U8 ссылка скопирована в буфер обмена",
-    });
-  };
 
   const downloadM3uFile = () => {
     if (!channel || !mediaContent.length) return;
@@ -1059,10 +1052,6 @@ const ChannelView = () => {
                     <code className="text-sm break-all">{getM3u8Url()}</code>
                   </div>
                   <div className="flex gap-2 mt-2">
-                    <Button onClick={copyM3u8Url} variant="secondary" className="flex-1">
-                      <Link className="w-4 h-4 mr-2" />
-                      Скопировать ссылку
-                    </Button>
                     <Button onClick={downloadM3uFile} variant="outline" className="flex-1">
                       <Download className="w-4 h-4 mr-2" />
                       Скачать M3U файл

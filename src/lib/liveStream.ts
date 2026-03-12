@@ -8,6 +8,25 @@ interface ResolveLiveStreamUrlOptions {
   requireLive?: boolean;
 }
 
+const isHttpUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
+  } catch {
+    return false;
+  }
+};
+
+const isLikelyHlsPlaybackUrl = (url: string): boolean => {
+  const normalized = url.toLowerCase();
+  return (
+    normalized.includes(".m3u8") ||
+    normalized.includes("hls") ||
+    normalized.includes("manifest") ||
+    normalized.includes("playlist")
+  );
+};
+
 export const resolveLiveStreamUrl = ({
   channelId,
   streamingMethod,
@@ -20,10 +39,9 @@ export const resolveLiveStreamUrl = ({
 
   const playbackUrl = (muxPlaybackId || "").trim();
 
-  if (playbackUrl.startsWith("https://") || playbackUrl.startsWith("http://")) {
+  if (playbackUrl && isHttpUrl(playbackUrl) && isLikelyHlsPlaybackUrl(playbackUrl)) {
     return playbackUrl;
   }
 
-  return `${HLS_PLAYLIST_BASE_URL}?channelId=${channelId}`;
+  return `${HLS_PLAYLIST_BASE_URL}?channelId=${encodeURIComponent(channelId)}`;
 };
-
