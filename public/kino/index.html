@@ -496,6 +496,561 @@
                     <h4 class="text-red-600 font-black mb-4 uppercase text-sm">Контакты</h4>
                     <p>По всем вопросам обращайтесь к владельцам видео-платформ, чьи скрипты интегрированы в данный интерфейс.</p>
                 </div>
+   <style>
+      
+        .nav-links { display: flex; gap: 2rem; }
+        .nav-links a { color: #E0E0E0; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: color 0.2s; }
+        .nav-links a:hover { color: #FF5E00; }
+        
+        h1 { font-size: 2.5rem; margin-bottom: 1rem; background: linear-gradient(135deg, #FF5E00, #FF8C42); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .last-updated { color: #888; font-size: 0.8rem; margin-bottom: 2rem; border-bottom: 1px solid #2A2A2A; padding-bottom: 1rem; }
+        h2 { font-size: 1.3rem; margin: 1.5rem 0 1rem; color: #FF8C42; }
+        p { margin-bottom: 1rem; color: #B3B3B3; }
+        .card {
+            background: #1A1A1A;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border: 1px solid #2A2A2A;
+        }
+        ul, ol { margin-left: 1.5rem; margin-bottom: 1rem; color: #B3B3B3; }
+        li { margin-bottom: 0.5rem; }
+    </style>
+</head>
+<body>
+ 
+    <div class="container">
+        <h1>🔒 Политика конфиденциальности</h1>
+        <div class="last-updated">Последнее обновление: 15 января 2025 года</div>
+
+        <p>Мы в OINK уважаем вашу конфиденциальность. Эта политика объясняет, какие данные мы собираем, как их используем и защищаем.</p>
+
+        <div class="card">
+            <h2>1. Какие данные мы собираем</h2>
+            <p><strong>1.1. Cookies и локальное хранилище (localStorage):</strong></p>
+            <ul>
+                <li><strong>oink_consent</strong> — ваше согласие на использование cookies (true/false)</li>
+                <li><strong>oink_history</strong> — история просмотренных фильмов (ID фильмов)</li>
+                <li><strong>oink_genres</strong> — предпочтения по жанрам на основе просмотров</li>
+            </ul>
+            <p><strong>1.2. Геолокация (IP-адрес):</strong> Мы определяем ваш регион через сервис ipapi.co для отображения флага в шапке сайта. IP-адрес не сохраняется на наших серверах.</p>
+            <p><strong>1.3. Данные не собираются:</strong> OINK НЕ собирает ФИО, адреса, телефоны, паспортные данные, банковскую информацию.</p>
+        </div>
+
+        <div class="card">
+            <h2>2. Как мы используем ваши данные</h2>
+            <ul>
+                <li><strong>Рекомендации фильмов:</strong> На основе истории просмотров и жанров мы подбираем персональные рекомендации в блоке "Рекомендации для вас".</li>
+                <li><strong>Улучшение сервиса:</strong> Анонимная статистика просмотров помогает нам понять, какие фильмы популярны.</li>
+                <li><strong>Отображение региона:</strong> Показываем ваш регион в шапке сайта.</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>3. Cookies и localStorage</h2>
+            <p>Cookies — это небольшие текстовые файлы, которые сохраняются на вашем устройстве. В OINK используются только технически необходимые cookies для работы рекомендаций.</p>
+            <p><strong>Вы можете контролировать cookies:</strong></p>
+            <ul>
+                <li>При первом посещении сайта появляется баннер с запросом согласия</li>
+                <li>Вы можете отклонить cookies — в этом случае персональные рекомендации работать не будут</li>
+                <li>В любой момент можно очистить cookies через настройки браузера</li>
+            </ul>
+            <p><strong>Как очистить cookies в браузере:</strong></p>
+            <ul>
+                <li>Chrome: Настройки → Конфиденциальность → Очистить историю → Cookies</li>
+                <li>Firefox: Настройки → Приватность → Удалить cookies</li>
+                <li>Safari: Настройки → Конфиденциальность → Управление данными сайтов</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>4. Передача данных третьим лицам</h2>
+            <p>OINK НЕ передает ваши данные третьим лицам. Исключения:</p>
+            <ul>
+                <li><strong>Плееры Kinobox и Kinobd:</strong> При просмотре фильма ваш IP-адрес может передаваться плеерам для загрузки видео. Это необходимо для работы сервиса.</li>
+                <li><strong>API Кинопоиска:</strong> Запросы к API содержат только ID фильмов, без персональных данных.</li>
+                <li><strong>ipapi.co:</strong> Сервис определения региона получает ваш IP-адрес, но не сохраняет его.</li>
+            </ul>
+            <p>Мы не продаем и не обмениваем ваши данные с рекламными сетями.</p>
+        </div>
+
+        <div class="card">
+            <h2>5. Хранение и защита данных</h2>
+            <p>5.1. Все данные (история просмотров, жанры) хранятся <strong>локально на вашем устройстве</strong> в localStorage. Мы не имеем к ним доступа со стороны сервера.</p>
+            <p>5.2. Сайт работает по протоколу HTTPS, что обеспечивает шифрование данных при передаче между вашим браузером и нашим сервером.</p>
+            <p>5.3. В случае утечки данных на стороне пользователя (например, взлом устройства) — OINK не несет ответственности.</p>
+        </div>
+
+        <div class="card">
+            <h2>6. Права пользователей</h2>
+            <p>Вы имеете право:</p>
+            <ul>
+                <li>Отказаться от cookies при первом посещении сайта</li>
+                <li>Очистить историю просмотров через настройки браузера</li>
+                <li>Не использовать сайт, если не согласны с политикой конфиденциальности</li>
+            </ul>
+            <p>Так как мы не собираем персональные данные (ФИО, email), запросы на удаление данных не требуются — достаточно очистить cookies в браузере.</p>
+        </div>
+
+        <div class="card">
+            <h2>7. Дети и несовершеннолетние</h2>
+            <p>OINK не предназначен для лиц младше 18 лет. Мы не собираем данные о возрасте пользователей. Если вы родитель и считаете, что ваш ребенок использовал сайт без вашего согласия — очистите cookies в браузере.</p>
+        </div>
+
+        <div class="card">
+            <h2>8. Изменения в политике конфиденциальности</h2>
+            <p>Мы можем обновлять эту политику. Актуальная версия всегда доступна по адресу <a href="privacy.html" style="color:#FF5E00;">/privacy.html</a>. Продолжая использовать сайт после изменений, вы соглашаетесь с новой версией.</p>
+        </div>
+
+        <div class="card">
+            <h2>9. Контакты</h2>
+            <p>Если у вас есть вопросы по политике конфиденциальности, свяжитесь с нами:</p>
+            <p>📧 Email: <strong>privacy@oink.cinema</strong> (в разработке)<br>
+            🌐 Сайт: <strong>oinkcinema.vercel.app</strong></p>
+        </div>
+
+        <p style="margin-top: 2rem; text-align: center; color: #666;">Используя OINK, вы подтверждаете, что ознакомлены с данной Политикой конфиденциальности.</p>
+    </div>
+
+</body>
+ <style>
+
+        .nav-links { display: flex; gap: 2rem; }
+        .nav-links a { color: #E0E0E0; text-decoration: none; font-size: 0.875rem; font-weight: 500; transition: color 0.2s; }
+        .nav-links a:hover { color: #FF5E00; }
+        
+        h1 { font-size: 2.5rem; margin-bottom: 1rem; background: linear-gradient(135deg, #FF5E00, #FF8C42); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .last-updated { color: #888; font-size: 0.8rem; margin-bottom: 2rem; border-bottom: 1px solid #2A2A2A; padding-bottom: 1rem; }
+        h2 { font-size: 1.3rem; margin: 1.5rem 0 1rem; color: #FF8C42; }
+        p { margin-bottom: 1rem; color: #B3B3B3; }
+        .card {
+            background: #1A1A1A;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border: 1px solid #2A2A2A;
+        }
+    </style>
+</head>
+<body>
+    
+
+    <div class="container">
+        <h1>📜 Пользовательское соглашение</h1>
+        <div class="last-updated">Последнее обновление: 15 января 2025 года</div>
+
+        <p>Добро пожаловать в OINK! Используя наш сайт (oinkcinema.vercel.app), вы соглашаетесь с условиями данного пользовательского соглашения. Пожалуйста, внимательно прочитайте его перед использованием сервиса.</p>
+
+        <div class="card">
+            <h2>1. Общие положения</h2>
+            <p>1.1. OINK (далее — «Сервис») предоставляет возможность поиска и просмотра фильмов, сериалов и другого видеоконтента через интеграцию со сторонними плеерами (Kinobox, Kinobd).</p>
+            <p>1.2. Сервис не хранит видеофайлы на своих серверах. Весь контент транслируется с использованием API сторонних плееров.</p>
+            <p>1.3. Использование Сервиса означает полное и безоговорочное принятие условий настоящего Соглашения.</p>
+        </div>
+
+        <div class="card">
+            <h2>2. Условия использования</h2>
+            <p>2.1. Вы обязуетесь использовать Сервис только в законных целях и не нарушать права третьих лиц.</p>
+            <p>2.2. Запрещено:</p>
+            <ul>
+                <li>Пытаться взламывать, декомпилировать или изменять код сайта</li>
+                <li>Использовать автоматические скрипты для парсинга контента</li>
+                <li>Распространять вредоносное ПО через Сервис</li>
+                <li>Нарушать авторские права и интеллектуальную собственность</li>
+                <li>Использовать Сервис для просмотра контента несовершеннолетними без согласия родителей</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>3. Интеллектуальная собственность</h2>
+            <p>3.1. Все товарные знаки, логотипы и названия фильмов являются собственностью их соответствующих владельцев.</p>
+            <p>3.2. OINK не претендует на права на какой-либо контент, транслируемый через плееры.</p>
+            <p>3.3. Данные о фильмах предоставлены API Кинопоиска и принадлежат его правообладателям.</p>
+        </div>
+
+        <div class="card">
+            <h2>4. Ограничение ответственности</h2>
+            <p>4.1. Сервис предоставляется «как есть» (AS IS). Мы не гарантируем бесперебойную работу плееров, так как они принадлежат третьим лицам.</p>
+            <p>4.2. OINK не несет ответственности за:</p>
+            <ul>
+                <li>Качество и доступность видеоконтента (зависит от плееров Kinobox/Kinobd)</li>
+                <li>Возможные перерывы в работе сайта (технические работы, обновления)</li>
+                <li>Действия пользователей, нарушающих законодательство</li>
+                <li>Потерю данных (в том числе истории просмотров)</li>
+            </ul>
+            <p>4.3. Максимальная ответственность OINK ограничена суммой 0 (ноль) рублей.</p>
+        </div>
+
+        <div class="card">
+            <h2>5. Конфиденциальность и cookies</h2>
+            <p>5.1. Сервис использует cookies для персонализации рекомендаций и анализа просмотров. Подробнее — в <a href="privacy.html" style="color:#FF5E00;">Политике конфиденциальности</a>.</p>
+            <p>5.2. Вы можете отклонить cookies при первом посещении сайта.</p>
+            <p>5.3. OINK не собирает персональные данные (ФИО, адрес, телефон, паспортные данные).</p>
+        </div>
+
+        <div class="card">
+            <h2>6. Изменение условий</h2>
+            <p>6.1. OINK оставляет за собой право изменять условия Соглашения в любое время без предварительного уведомления.</p>
+            <p>6.2. Актуальная версия всегда доступна по адресу <a href="terms.html" style="color:#FF5E00;">/terms.html</a>.</p>
+            <p>6.3. Продолжая использовать Сервис после изменений, вы автоматически соглашаетесь с новой версией.</p>
+        </div>
+
+        <div class="card">
+            <h2>7. Заключительные положения</h2>
+            <p>7.1. Настоящее Соглашение регулируется законодательством Российской Федерации.</p>
+            <p>7.2. Все споры решаются путем переговоров. При невозможности достичь согласия — в суде по месту регистрации правообладателя.</p>
+            <p>7.3. Если какое-либо положение Соглашения признается недействительным, остальные положения сохраняют силу.</p>
+            <p>7.4. Для связи с администрацией используйте: <strong>support@oink.cinema</strong> (в разработке).</p>
+        </div>
+
+        <p style="margin-top: 2rem; text-align: center; color: #666;">Используя OINK, вы подтверждаете, что прочитали и согласны с условиями данного Соглашения.</p>
+    </div>
+</body>
+ <style>
+        h1 { font-size: 2.5rem; margin-bottom: 2rem; background: linear-gradient(135deg, #FF5E00, #FF8C42); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        h2 { font-size: 1.5rem; margin: 2rem 0 1rem; color: #FF8C42; }
+        .faq-item {
+            background: #1A1A1A;
+            border-radius: 16px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+            border: 1px solid #2A2A2A;
+        }
+        .faq-question {
+            padding: 1.25rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+        .faq-question:hover { background: #252525; }
+        .faq-question .icon { font-size: 1.2rem; color: #FF5E00; transition: transform 0.3s; }
+        .faq-question.active .icon { transform: rotate(45deg); }
+        .faq-answer {
+            padding: 0 1.25rem 1.25rem;
+            color: #B3B3B3;
+            line-height: 1.6;
+            display: none;
+        }
+        .faq-answer.show { display: block; }
+        .smarttv-card {
+            background: linear-gradient(135deg, #1A1A1A, #0D0D0D);
+            border: 1px solid #FF5E00;
+            border-radius: 20px;
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>📺 Часто задаваемые вопросы</h1>
+
+        <div class="smarttv-card">
+            <h2 style="margin-top: 0; color: #FF5E00;">🖥️ Как смотреть OINK на Smart TV?</h2>
+            <p style="margin-bottom: 1rem;"><strong>Пошаговая инструкция:</strong></p>
+            <ol style="margin-left: 1.5rem; color: #B3B3B3; line-height: 1.8;">
+                <li>Включите Smart TV и откройте <strong>встроенный браузер</strong> (Samsung Internet, LG Browser, Chrome на Android TV)</li>
+                <li>В адресной строке введите: <code style="background:#333; padding:0.2rem 0.5rem;">oinkcinema.vercel.app</code></li>
+                <li>Дождитесь загрузки главной страницы</li>
+                <li>Используйте <strong>пульт ДУ</strong> для навигации:
+                    <ul style="margin-left: 1.5rem; margin-top: 0.5rem;">
+                        <li>⬆️⬇️⬅️➡️ — перемещение по карточкам фильмов</li>
+                        <li>⏺ OK/Enter — начать просмотр</li>
+                        <li>⏺ OK дважды — открыть подробную информацию</li>
+                        <li>🔙 Назад — закрыть плеер</li>
+                    </ul>
+                </li>
+                <li>Наслаждайтесь просмотром на большом экране!</li>
+            </ol>
+            <p style="margin-top: 1rem; color: #FF8C42;">💡 Совет: Если браузер ТВ не поддерживает сайт, установите приложение "TV Bro" из магазина приложений.</p>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                <span>❓ Не работает плеер, что делать?</span>
+                <span class="icon">+</span>
+            </div>
+            <div class="faq-answer">
+                Попробуйте следующие решения:<br>
+                1. Обновите страницу (F5 или кнопка обновления в браузере)<br>
+                2. В плеере Kinobox нажмите на иконку шестеренки и выберите другой источник (Alloha, Kodik, VideoCDN)<br>
+                3. Очистите кэш браузера<br>
+                4. Попробуйте другой браузер (Chrome, Firefox, Edge)<br>
+                5. Если ничего не помогло — напишите нам через форму обратной связи (в разработке)
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                <span>❓ Почему видео тормозит или не загружается?</span>
+                <span class="icon">+</span>
+            </div>
+            <div class="faq-answer">
+                Причины могут быть разные:<br>
+                - Медленное интернет-соединение (рекомендуем от 10 Мбит/с)<br>
+                - Высокая нагрузка на плеер (попробуйте переключить источник в меню плеера)<br>
+                - Включен VPN/прокси (отключите для лучшей скорости)<br>
+                - Устаревший браузер (обновите до последней версии)
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                <span>❓ Как работают рекомендации?</span>
+                <span class="icon">+</span>
+            </div>
+            <div class="faq-answer">
+                OINK анализирует ваши просмотры и сохраняет предпочтения по жанрам в cookies (с вашего согласия).<br>
+                На основе этих данных алгоритм подбирает похожие фильмы в блоке "Рекомендации для вас".<br>
+                Вы можете отклонить cookies при первом посещении — в этом случае персональные рекомендации работать не будут.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                <span>❓ Безопасно ли пользоваться OINK?</span>
+                <span class="icon">+</span>
+            </div>
+            <div class="faq-answer">
+                Да! OINK не хранит видеофайлы на своих серверах. Все данные берутся из официальных плееров (Kinobox, Kinobd).<br>
+                Мы не собираем личную информацию — только анонимные данные о просмотренных жанрах.<br>
+                Сайт работает по протоколу HTTPS, что обеспечивает безопасное соединение.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                <span>❓ Нужна ли регистрация?</span>
+                <span class="icon">+</span>
+            </div>
+            <div class="faq-answer">
+                Нет! OINK не требует регистрации. Вы можете смотреть любые фильмы и сериалы абсолютно бесплатно и без создания аккаунта.<br>
+                Для работы рекомендаций используются только локальные cookies, которые хранятся в вашем браузере.
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                <span>❓ Какие устройства поддерживаются?</span>
+                <span class="icon">+</span>
+            </div>
+            <div class="faq-answer">
+                OINK работает на всех современных устройствах:<br>
+                💻 Компьютеры (Windows, Mac, Linux) — любой браузер<br>
+                📱 Смартфоны и планшеты (iOS, Android) — Safari, Chrome, Firefox<br>
+                📺 Smart TV (Samsung, LG, Android TV, Apple TV через AirPlay)<br>
+                🎮 Игровые консоли (PlayStation, Xbox) — через встроенный браузер
+            </div>
+        </div>
+
+        <div class="faq-item">
+            <div class="faq-question" onclick="toggleFaq(this)">
+                <span>❓ Как добавить свой фильм на сайт?</span>
+                <span class="icon">+</span>
+            </div>
+            <div class="faq-answer">
+                Все фильмы автоматически подгружаются из API Кинопоиска. Если какого-то фильма нет в базе, значит его нет и в официальной базе Кинопоиска.<br>
+                Для интеграции собственного контента используйте документацию в разделе <a href="docs.html" style="color:#FF5E00;">Docs</a>.
+            </div>
+        </div>
+    </div>
+
+ 
+
+    <script>
+        function toggleFaq(element) {
+            const answer = element.nextElementSibling;
+            const icon = element.querySelector('.icon');
+            answer.classList.toggle('show');
+            element.classList.toggle('active');
+            icon.textContent = answer.classList.contains('show') ? '✕' : '+';
+        }
+    </script>
+</body>
+                    <head><title>Docs API OINK</title><link rel="stylesheet" href="styles.css"></head><body><div class="section"><h1>OINK Docs</h1><p>Интеграция плееров: используйте <code>&lt;div data-kinopoisk="ID" id="kinobd"&gt;&lt;/div&gt;</code> и скрипт <code>kinobd.net/js/player_.js</code>. Также доступен kinobox.</p><p>API Кинопоиска: ключ предоставлен. Эндпоинты поиска, трендов, деталей.</p></div></body>
+<head>
+    <style>
+   
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #FF5E00, #FF8C42);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        h2 {
+            font-size: 1.5rem;
+            margin: 2rem 0 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #FF5E00;
+            display: inline-block;
+        }
+        h3 {
+            font-size: 1.2rem;
+            margin: 1.5rem 0 0.75rem;
+            color: #FF8C42;
+        }
+        .card {
+            background: #1A1A1A;
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            border: 1px solid #2A2A2A;
+        }
+        pre {
+            background: #0D0D0D;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1rem 0;
+            border: 1px solid #333;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.8rem;
+            color: #4CAF50;
+        }
+        code {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: #2A2A2A;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+        .badge {
+            background: #FF5E00;
+            color: white;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #2A2A2A;
+        }
+        th {
+            background: #1A1A1A;
+            color: #FF5E00;
+        }
+        @media (max-width: 768px) {
+            .header-container { flex-direction: column; gap: 0.5rem; }
+            .nav-links { flex-wrap: wrap; justify-content: center; gap: 1rem; }
+            .container { padding: 120px 1rem 2rem; }
+            h1 { font-size: 1.8rem; }
+        }
+    </style>
+</head>
+<body>
+ 
+
+    <div class="container">
+        <h1>📚 Документация OINK Cinema</h1>
+        <p>Полное руководство по интеграции плееров, использованию API Кинопоиска и работе с платформой OINK.</p>
+
+        <div class="card">
+            <h2>🎬 Интеграция плеера Kinobox</h2>
+            <p><span class="badge">Рекомендуется</span> Самый стабильный плеер с множеством источников (Alloha, Kodik, VideoCDN, Collaps).</p>
+            <h3>Базовое подключение:</h3>
+            <pre><code>&lt;div id="player"&gt;&lt;/div&gt;
+
+&lt;script src="https://kinoboxtv.tatnet.app/kinobox.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  kinobox('#player', {
+    search: { kinopoisk: 301  // ID фильма с Кинопоиска
+    }
+  });
+&lt;/script&gt;</code></pre>
+
+            <h3>Расширенная конфигурация:</h3>
+            <pre><code>kinobox('#player', {
+  search: { kinopoisk: ID },
+  players: ['alloha', 'kodik', 'videocdn', 'ashdi', 'collaps'],
+  menu: { 
+    default: 'menu',
+    position: 'top'
+  }
+});</code></pre>
+        </div>
+
+        <div class="card">
+            <h2>🎬 Интеграция плеера Kinobd</h2>
+            <p><span class="badge">Альтернатива</span> Простой и быстрый плеер от kinobd.net.</p>
+            <pre><code>&lt;div data-kinopoisk="301" id="kinobd"&gt;&lt;/div&gt;
+&lt;script src="https://kinobd.net/js/player_.js"&gt;&lt;/script&gt;</code></pre>
+            <p><strong>Примечание:</strong> ID фильма вставляется в атрибут <code>data-kinopoisk</code>. Плеер автоматически подхватит все доступные источники.</p>
+        </div>
+
+        <div class="card">
+            <h2>🔌 API Кинопоиска (неофициальный)</h2>
+            <p>Для получения данных о фильмах, поиска и рекомендаций используется API с ключом:</p>
+            <pre><code>API_KEY: 960dc4e3-9eae-4072-8f0c-98a5ed6c0d2a
+BASE_URL: https://kinopoiskapiunofficial.tech/api</code></pre>
+
+            <h3>Эндпоинты:</h3>
+            <table>
+                <tr><th>Метод</th><th>URL</th><th>Описание</th></tr>
+                <tr><td>GET</td><td><code>/v2.1/films/search-by-keyword?keyword={query}&page=1</code></td><td>Поиск фильмов по ключевому слову</td></tr>
+                <tr><td>GET</td><td><code>/v2.2/films/top?type=TOP_100_POPULAR_FILMS&page=1</code></td><td>Популярные фильмы</td></tr>
+                <tr><td>GET</td><td><code>/v2.2/films/{id}</code></td><td>Детальная информация о фильме</td></tr>
+                <tr><td>GET</td><td><code>/v2.2/films/{id}/similars</code></td><td>Похожие фильмы</td></tr>
+            </table>
+
+            <h3>Пример запроса (JavaScript):</h3>
+            <pre><code>const response = await fetch('https://kinopoiskapiunofficial.tech/api/v2.2/films/301', {
+  headers: {
+    'X-API-KEY': '960dc4e3-9eae-4072-8f0c-98a5ed6c0d2a',
+    'Content-Type': 'application/json'
+  }
+});
+const data = await response.json();</code></pre>
+        </div>
+
+        <div class="card">
+            <h2>🍪 Cookies и рекомендации</h2>
+            <p>OINK использует cookies для персонализации контента. Вот как это работает:</p>
+            <ul style="margin-left: 1.5rem; color: #B3B3B3;">
+                <li>История просмотров сохраняется в <code>localStorage</code></li>
+                <li>Предпочтения по жанрам собираются автоматически</li>
+                <li>Блок "Рекомендации для вас" формируется на основе просмотренных жанров</li>
+                <li>Пользователь может отклонить cookies — в этом случае персональные рекомендации отключаются</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>📺 Smart TV</h2>
+            <p>OINK полностью совместим со Smart TV на базе:</p>
+            <ul style="margin-left: 1.5rem; color: #B3B3B3;">
+                <li><strong>Samsung Tizen</strong> — через встроенный браузер</li>
+                <li><strong>LG webOS</strong> — полностью поддерживается</li>
+                <li><strong>Android TV / Google TV</strong> — через браузер или приложение TV Bro</li>
+                <li><strong>Apple TV</strong> — через AirPlay с iPhone/iPad</li>
+            </ul>
+            <p>Навигация осуществляется пультом: стрелки — перемещение, OK/Enter — просмотр, двойное нажатие OK — подробности.</p>
+        </div>
+
+        <div class="card">
+            <h2>🌍 Гео-определение</h2>
+            <p>Сайт автоматически определяет ваш регион через сервис ipapi.co. Это используется для:</p>
+            <ul style="margin-left: 1.5rem; color: #B3B3B3;">
+                <li>Отображения региона в шапке сайта</li>
+                <li>Адаптации контента (в разработке)</li>
+            </ul>
+        </div>
+    </div>
+</body>
+                </div>
             </div>
         </div>
     </main>
