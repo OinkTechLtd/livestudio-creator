@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NewsAggregator - Новости России и мира</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #00BCD4;
+            --secondary: #4CAF50;
+            --accent: #9C27B0;
+            --dark: #0a0a0a;
+            --dark-light: #1a1a1a;
+            --text: #ffffff;
+            --text-light: rgba(255, 255, 255, 0.7);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--dark);
+            min-height: 100vh;
+            color: var(--text);
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px 0;
+        }
+
+        .header h1 {
+            font-size: 52px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 15px;
+        }
+
+        .header p {
+            font-size: 18px;
+            color: var(--text-light);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .news-categories {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            overflow-x: auto;
+            padding: 10px 0;
+        }
+
+        .category-btn {
+            padding: 10px 20px;
+            background: rgba(30, 30, 30, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            color: var(--text-light);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.3s;
+        }
+
+        .category-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .news-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .news-card {
+            background: rgba(30, 30, 30, 0.7);
+            border-radius: 15px;
+            overflow: hidden;
+            transition: transform 0.3s;
+            cursor: pointer;
+        }
+
+        .news-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .news-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .news-content {
+            padding: 20px;
+        }
+
+        .news-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            line-height: 1.4;
+            color: white;
+        }
+
+        .news-description {
+            font-size: 14px;
+            color: var(--text-light);
+            margin-bottom: 15px;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .news-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-light);
+        }
+
+        .news-source {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-light);
+        }
+
+        .error {
+            text-align: center;
+            padding: 30px;
+            color: #ff6b6b;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 30px 0;
+            color: var(--text-light);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            margin-top: 40px;
+        }
+
+        @media (max-width: 768px) {
+            .news-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 36px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>NewsAggregator</h1>
+            <p>Все важные новости России и мира в одном месте</p>
+        </div>
+
+        <div class="news-categories" id="newsCategories">
+            <button class="category-btn active" data-category="all">Все новости</button>
+            <button class="category-btn" data-category="politics">Политика</button>
+            <button class="category-btn" data-category="economics">Экономика</button>
+            <button class="category-btn" data-category="society">Общество</button>
+            <button class="category-btn" data-category="world">В мире</button>
+            <button class="category-btn" data-category="sport">Спорт</button>
+        </div>
+
+        <div class="news-grid" id="newsGrid">
+            <div class="loading">
+                <i class="fas fa-spinner fa-spin"></i> Загрузка новостей...
+            </div>
+        </div>
+
+        <div class="footer">
+            NewsAggregator - Агрегатор новостей © 2024
+        </div>
+    </div>
+
+    <script>
+        // RSS-каналы популярных новостных источников
+        const rssFeeds = [
+            {
+                name: "РИА Новости",
+                url: "https://ria.ru/export/rss2/index.xml",
+                category: "all"
+            },
+            {
+                name: "Лента.ру",
+                url: "https://lenta.ru/rss",
+                category: "all"
+            },
+            {
+                name: "Ведомости",
+                url: "https://www.vedomosti.ru/rss/news",
+                category: "economics"
+            },
+            {
+                name: "ТАСС",
+                url: "https://tass.ru/rss/v2.xml",
+                category: "all"
+            },
+            {
+                name: "Коммерсантъ",
+                url: "https://www.kommersant.ru/RSS/news.xml",
+                category: "economics"
+            },
+            {
+                name: "РБК",
+                url: "https://rssexport.rbc.ru/rbcnews/news/30/full.rss",
+                category: "economics"
+            },
+            {
+                name: "Интерфакс",
+                url: "https://www.interfax.ru/rss.asp",
+                category: "all"
+            },
+            {
+                name: "Газета.Ru",
+                url: "https://www.gazeta.ru/export/rss/lenta.xml",
+                category: "all"
+            },
+            {
+                name: "Российская газета",
+                url: "https://rg.ru/xml/index.xml",
+                category: "all"
+            },
+            {
+                name: "RT на русском",
+                url: "https://russian.rt.com/rss",
+                category: "world"
+            }
+        ];
+
+        let allNews = [];
+        let currentCategory = "all";
+
+        // Инициализация при загрузке страницы
+        window.onload = function() {
+            loadNews();
+            setupCategoryButtons();
+        };
+
+        // Настройка кнопок категорий
+        function setupCategoryButtons() {
+            const buttons = document.querySelectorAll('.category-btn');
+            buttons.forEach(button => {
+                button.addEventListener('click', function() {
+                    // Убираем активный класс у всех кнопок
+                    buttons.forEach(btn => btn.classList.remove('active'));
+                    // Добавляем активный класс к текущей кнопке
+                    this.classList.add('active');
+                    // Устанавливаем текущую категорию
+                    currentCategory = this.getAttribute('data-category');
+                    // Фильтруем новости по категории
+                    filterNewsByCategory();
+                });
+            });
+        }
+
+        // Загрузка новостей из RSS-каналов
+        async function loadNews() {
+            const newsGrid = document.getElementById("newsGrid");
+            
+            try {
+                // Создаем массив промисов для загрузки всех RSS-каналов
+                const fetchPromises = rssFeeds.map(feed => fetchRSS(feed));
+                
+                // Ждем завершения всех запросов
+                const results = await Promise.allSettled(fetchPromises);
+                
+                // Обрабатываем результаты
+                allNews = [];
+                results.forEach(result => {
+                    if (result.status === 'fulfilled' && result.value) {
+                        allNews = allNews.concat(result.value);
+                    }
+                });
+                
+                // Сортируем новости по дате (от новых к старым)
+                allNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+                
+                // Отображаем новости
+                displayNews(allNews);
+            } catch (error) {
+                console.error('Ошибка загрузки новостей:', error);
+                newsGrid.innerHTML = '<div class="error">Не удалось загрузить новости. Пожалуйста, попробуйте позже.</div>';
+            }
+        }
+
+        // Получение RSS-данных через CORS-прокси
+        async function fetchRSS(feed) {
+            // Используем CORS-прокси для обхода ограничений браузера
+            const proxyUrl = 'https://secure-272717.tatnet.app/';
+            const targetUrl = encodeURIComponent(feed.url);
+            
+            try {
+                const response = await fetch(proxyUrl + targetUrl);
+                const text = await response.text();
+                
+                // Парсим XML с помощью DOMParser
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(text, "text/xml");
+                
+                // Извлекаем элементы новостей
+                const items = xmlDoc.querySelectorAll("item");
+                const newsItems = [];
+                
+                items.forEach(item => {
+                    const title = item.querySelector("title")?.textContent || "Без названия";
+                    const description = item.querySelector("description")?.textContent || "";
+                    const link = item.querySelector("link")?.textContent || "#";
+                    const pubDate = item.querySelector("pubDate")?.textContent || new Date().toISOString();
+                    
+                    // Извлекаем изображение (если есть)
+                    let imageUrl = "";
+                    const enclosure = item.querySelector("enclosure");
+                    if (enclosure && enclosure.getAttribute("type")?.startsWith("image/")) {
+                        imageUrl = enclosure.getAttribute("url") || "";
+                    } else {
+                        // Попробуем извлечь изображение из описания
+                        const imgMatch = description.match(/<img[^>]+src="([^">]+)"/);
+                        if (imgMatch) {
+                            imageUrl = imgMatch[1];
+                        }
+                    }
+                    
+                    // Если изображение не найдено, используем заглушку
+                    if (!imageUrl) {
+                        imageUrl = "https://via.placeholder.com/400x200/333/fff?text=News";
+                    }
+                    
+                    newsItems.push({
+                        title,
+                        description: description.replace(/<[^>]*>/g, ""), // Убираем HTML-теги
+                        link,
+                        pubDate,
+                        imageUrl,
+                        source: feed.name,
+                        category: feed.category
+                    });
+                });
+                
+                return newsItems;
+            } catch (error) {
+                console.error(`Ошибка загрузки RSS из ${feed.name}:`, error);
+                return null;
+            }
+        }
+
+        // Отображение новостей
+        function displayNews(news) {
+            const newsGrid = document.getElementById("newsGrid");
+            
+            if (!news || news.length === 0) {
+                newsGrid.innerHTML = '<div class="error">Новости не найдены</div>';
+                return;
+            }
+            
+            let html = '';
+            
+            news.forEach(item => {
+                // Форматируем дату
+                const pubDate = new Date(item.pubDate);
+                const formattedDate = pubDate.toLocaleDateString('ru-RU', {
+                    day: 'numeric',
+                    month: 'long',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                html += `
+                    <div class="news-card" onclick="window.open('${item.link}', '_blank')">
+                        <img class="news-image" src="${item.imageUrl}" alt="${item.title}">
+                        <div class="news-content">
+                            <h3 class="news-title">${item.title}</h3>
+                            <p class="news-description">${item.description}</p>
+                            <div class="news-meta">
+                                <span class="news-source">${item.source}</span>
+                                <span class="news-date">${formattedDate}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            newsGrid.innerHTML = html;
+        }
+
+        // Фильтрация новостей по категории
+        function filterNewsByCategory() {
+            if (currentCategory === "all") {
+                displayNews(allNews);
+            } else {
+                const filteredNews = allNews.filter(item => item.category === currentCategory);
+                displayNews(filteredNews);
+            }
+        }
+    </script>
+</body>
+</html>
